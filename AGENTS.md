@@ -129,7 +129,8 @@ When you want durable fixes (not one-off chat advice):
 - `web-chat` talks to `remote-agent` via A2A for chat (never directly to `bq-mcp`). Platform-info loads live A2A + agent MCP metadata only; bq-mcp tool list is documented statically (chain: web-chat → remote-agent → bq-mcp).
 - Launch web-chat against Cloud Run with `./scripts/run-web-chat.sh` (direct `AGENT_URL` + gcloud ADC for IAM, not `proxy-agent.sh`); OAuth credentials live in `terraform/terraform.tfvars`, not `packages/web-chat/.env.local`.
 - web-chat OAuth requires a Desktop or Web application client in `terraform.tfvars` (`web_oauth_client_id`); Terraform’s IAP OAuth client cannot register localhost redirect URIs—use `./scripts/setup-web-oauth.sh`.
-- MCP IDE config (`.mcp.json` / `mcp.json`) uses proxy localhost URLs; Google SSO at runtime via OAuth PRM discovery—do not hardcode scopes in config.
+- Cursor MCP uses `.cursor/mcp.json` (Claude Code: `.mcp.json`); localhost proxy URLs + PRM discovery; requires a pre-registered Desktop OAuth client via `MCP_GOOGLE_OAUTH_CLIENT_ID` (not `web_oauth_client_id`)—Google has no MCP dynamic client registration. Only web-chat runs a browser OAuth redirect; agent and MCP validate tokens obtained elsewhere.
+- A2A SDK 0.3 serves `/.well-known/agent-card.json` with `protocolVersion: '0.3.0'`; `A2AExpressApp` imports from `@a2a-js/sdk/server/express`. `@google/adk` 1.x requires `sqlite3: true` in `pnpm-workspace.yaml` `allowBuilds`. `web-chat` runs Next.js 16 (Turbopack default).
 - Cloud Run services deploy via shell scripts (`deploy-mcp.sh`, `deploy-agent.sh`), not Terraform; web-chat runs locally, not on Cloud Run.
 - BigQuery dataset listing impersonates a dedicated metadata-reader service account; authenticated-user lookups use the caller's OAuth token directly.
 - `allowed_emails` in Terraform grants Cloud Run `run.invoker` IAM only; runtime app auth relies on Google OAuth token validation, not email allowlists.

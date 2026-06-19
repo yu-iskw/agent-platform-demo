@@ -64,7 +64,7 @@ function defaultBqMcpUrl(): string {
 }
 
 async function fetchAgentCard(agentUrl: string): Promise<AgentCard> {
-  const response = await fetch(`${normalizeBaseUrl(agentUrl)}/.well-known/agent.json`);
+  const response = await fetch(`${normalizeBaseUrl(agentUrl)}/.well-known/agent-card.json`);
   if (!response.ok) {
     throw new Error(`Agent card fetch failed (HTTP ${response.status})`);
   }

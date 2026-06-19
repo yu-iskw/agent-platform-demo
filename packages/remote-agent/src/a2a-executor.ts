@@ -49,6 +49,7 @@ export class BigQueryAgentExecutor implements AgentExecutor {
 
 export function buildAgentCard(baseUrl: string): AgentCard {
   return {
+    protocolVersion: '0.3.0',
     name: 'BigQuery Assistant',
     description: 'Helps list BigQuery datasets using user-delegated credentials via MCP.',
     url: baseUrl,

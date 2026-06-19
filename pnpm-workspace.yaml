@@ -8,6 +8,7 @@ allowBuilds:
   esbuild: true
   protobufjs: true
   sharp: true
+  sqlite3: true
   unrs-resolver: true
 blockExoticSubdeps: true # explicit; matches v11 default
 
@@ -25,6 +26,7 @@ minimumReleaseAgeExclude:
 # Migrated from package.json#pnpm (pnpm 11 no longer reads that field)
 overrides:
   '@opentelemetry/core': 2.8.0
+  '@tootallnate/once': 3.0.1
   postcss: 8.5.10
   tar: 7.5.16
   uuid: 11.1.1

@@ -1,4 +1,5 @@
-import { A2AExpressApp, DefaultRequestHandler, InMemoryTaskStore } from '@a2a-js/sdk/server';
+import { DefaultRequestHandler, InMemoryTaskStore } from '@a2a-js/sdk/server';
+import { A2AExpressApp } from '@a2a-js/sdk/server/express';
 import { createGoogleUserAuthMiddleware } from '@agent-platform/mcp-auth';
 import express, { json } from 'express';
 
@@ -41,6 +42,6 @@ a2aApp.setupRoutes(app as never, '', [googleUserAuthMiddleware as never]);
 
 app.listen(PORT, HOST, () => {
   console.log(`remote-agent listening on http://${HOST}:${PORT}`);
-  console.log(`Agent card: http://${HOST}:${PORT}/.well-known/agent.json`);
+  console.log(`Agent card: http://${HOST}:${PORT}/.well-known/agent-card.json`);
   console.log(`MCP endpoint: ${MCP_RESOURCE_URL}`);
 });

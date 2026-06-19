@@ -11,17 +11,17 @@
     "dev": "node --import tsx src/index.ts"
   },
   "dependencies": {
-    "@a2a-js/sdk": "^0.2.4",
+    "@a2a-js/sdk": "^0.3.13",
     "@agent-platform/mcp-auth": "workspace:*",
-    "@google/adk": "^0.2.0",
+    "@google/adk": "^1.2.0",
     "@modelcontextprotocol/sdk": "^1.17.0",
     "express": "^5.1.0",
     "express-rate-limit": "^8.5.2",
-    "zod": "^3.25.76"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
-    "@types/node": "^24.0.0",
+    "@types/node": "^25.9.3",
     "tsx": "^4.20.3"
   }
 }
