@@ -35,7 +35,7 @@ type ApiCatalogEntry = {
   describedby: ApiCatalogLink[];
 };
 
-export type ApiCatalog = {
+type ApiCatalog = {
   linkset: ApiCatalogEntry[];
 };
 
@@ -48,7 +48,7 @@ function normalizeBaseUrl(url: string): string {
   return url.replace(/\/$/, '');
 }
 
-export function buildApiCatalog(publicBaseUrl: string): ApiCatalog {
+function buildApiCatalog(publicBaseUrl: string): ApiCatalog {
   const base = normalizeBaseUrl(publicBaseUrl);
 
   return {
