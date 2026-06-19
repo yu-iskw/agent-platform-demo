@@ -1,0 +1,27 @@
+{
+  "name": "@agent-platform/web-chat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local chat web app with Google SSO and A2A agent client",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000"
+  },
+  "dependencies": {
+    "@agent-platform/agent-client": "workspace:*",
+    "@agent-platform/mcp-auth": "workspace:*",
+    "google-auth-library": "^10.1.0",
+    "jose": "^6.0.11",
+    "next": "^15.4.6",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.1.9",
+    "@types/react-dom": "^19.1.7",
+    "typescript": "^6.0.3"
+  }
+}

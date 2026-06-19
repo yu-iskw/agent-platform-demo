@@ -111,3 +111,25 @@ When you want durable fixes (not one-off chat advice):
 - Do not install Trunk-managed linters globally; versions live in `.trunk/trunk.yaml`
 - Commit **`pnpm-lock.yaml`**
 - After `pnpm install`, Trunk is under `node_modules/.bin`; pin is in `.trunk/trunk.yaml` (`cli.version`). Run `pnpm exec trunk install` if formatters/linters are missing
+
+## Learned User Preferences
+
+- Prefer simple, minimal implementations; explicitly avoid over-engineering when planning and building features.
+- Request plans with architecture diagrams before implementing non-trivial changes.
+- Use structured problem-solving analysis (`/problem-solving`) before major architectural or design decisions.
+- Execute attached plans as specified without editing the plan file itself.
+- Do not spawn shell commands from TypeScript application code; pass Google access tokens via environment variables (e.g. from `gcloud auth print-access-token`) instead.
+- Application code must be TypeScript; TypeScript packages belong under `packages/`.
+
+## Learned Workspace Facts
+
+- Demo: remote A2A agent chained to MCP servers (BigQuery): separate pnpm workspace packages for web-chat, remote-agent, bq-mcp-server, mcp-auth, and related tooling.
+- `bq-mcp` and `remote-agent` run on private Cloud Run; IDE/MCP clients use `scripts/proxy-mcp.sh` (:8080) and `scripts/proxy-agent.sh` (:8081).
+- `remote-agent` exposes both A2A (agent-cli, web-chat) and MCP (`/mcp` with a `chat` tool); `bq-mcp` exposes direct BigQuery MCP tools (`list_datasets`, `get_authenticated_user`).
+- `web-chat` talks to `remote-agent` via A2A for chat (never directly to `bq-mcp`). Platform-info loads live A2A + agent MCP metadata only; bq-mcp tool list is documented statically (chain: web-chat → remote-agent → bq-mcp).
+- Launch web-chat against Cloud Run with `./scripts/run-web-chat.sh` (direct `AGENT_URL` + gcloud ADC for IAM, not `proxy-agent.sh`); OAuth credentials live in `terraform/terraform.tfvars`, not `packages/web-chat/.env.local`.
+- web-chat OAuth requires a Desktop or Web application client in `terraform.tfvars` (`web_oauth_client_id`); Terraform’s IAP OAuth client cannot register localhost redirect URIs—use `./scripts/setup-web-oauth.sh`.
+- MCP IDE config (`.mcp.json` / `mcp.json`) uses proxy localhost URLs; Google SSO at runtime via OAuth PRM discovery—do not hardcode scopes in config.
+- Cloud Run services deploy via shell scripts (`deploy-mcp.sh`, `deploy-agent.sh`), not Terraform; web-chat runs locally, not on Cloud Run.
+- BigQuery dataset listing impersonates a dedicated metadata-reader service account; authenticated-user lookups use the caller's OAuth token directly.
+- `allowed_emails` in Terraform grants Cloud Run `run.invoker` IAM only; runtime app auth relies on Google OAuth token validation, not email allowlists.
