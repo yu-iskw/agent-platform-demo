@@ -13,9 +13,9 @@ export type A2aDemoMetadata = {
 };
 
 type DemoMetadataRecord = {
-  'demo.mode'?: unknown;
-  'demo.action'?: unknown;
-  'demo.projectId'?: unknown;
+  [DEMO_MODE_KEY]?: unknown;
+  [DEMO_ACTION_KEY]?: unknown;
+  [DEMO_PROJECT_ID_KEY]?: unknown;
 };
 
 type MessageWithMetadata = {

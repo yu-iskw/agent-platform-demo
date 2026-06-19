@@ -1,8 +1,7 @@
-import { GoogleAuth } from 'google-auth-library';
-
 import { getEmailFromGoogleAccessToken } from './google-access-token.js';
 import { getOAuth2Client } from './oauth2-client.js';
 import { extractBearerToken } from './session-jwt.js';
+import { looksLikeJwtIdToken } from './token-heuristic.js';
 
 export type ServiceAuthOptions = {
   expectedServiceAccountEmail?: string;
@@ -21,26 +20,7 @@ export function assertServiceAuthModeAllowed(authMode: string | undefined): void
   }
 }
 
-export function looksLikeJwtIdToken(token: string): boolean {
-  return token.startsWith('eyJ');
-}
-
 const MISSING_BEARER_TOKEN = 'Missing bearer token';
-
-const idTokenCache = new Map<string, { token: string; expiresAt: number }>();
-
-export async function fetchCloudRunIdToken(audience: string): Promise<string> {
-  const cached = idTokenCache.get(audience);
-  if (cached && cached.expiresAt > Date.now() + 60_000) {
-    return cached.token;
-  }
-
-  const auth = new GoogleAuth();
-  const client = await auth.getIdTokenClient(audience);
-  const token = await client.idTokenProvider.fetchIdToken(audience);
-  idTokenCache.set(audience, { token, expiresAt: Date.now() + 50 * 60 * 1000 });
-  return token;
-}
 
 export async function verifyCloudRunCaller(
   authorizationHeader: string | undefined,

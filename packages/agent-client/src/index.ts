@@ -1,4 +1,15 @@
 export {
+  buildA2aDemoMetadata,
+  parseA2aDemoMetadata,
+  DEMO_ACTION_KEY,
+  DEMO_MODE_KEY,
+  DEMO_PROJECT_ID_KEY,
+  type A2aDemoMetadata,
+  type DemoAction,
+  type DemoMode,
+} from './a2a-demo-metadata.js';
+export { extractTextFromMessage } from './a2a-message.js';
+export {
   discoverAgents,
   parseApiCatalog,
   type ApiCatalog,

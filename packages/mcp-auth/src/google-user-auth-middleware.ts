@@ -10,7 +10,6 @@ export type GoogleUserContext = {
 
 export type GoogleUserAuthMiddlewareOptions = {
   userContext?: AsyncLocalStorage<GoogleUserContext>;
-  onVerified?: (context: GoogleUserContext) => void;
 };
 
 type GoogleUserAuthRequest = {
@@ -31,7 +30,9 @@ export function createGoogleUserAuthMiddleware(
   next: GoogleUserAuthNext,
 ) => Promise<void> {
   return async (req, res, next): Promise<void> => {
-    const token = resolveDelegatedUserAccessToken(req.headers);
+    const token = resolveDelegatedUserAccessToken(req.headers, {
+      excludeJwtFromAuthorization: true,
+    });
     if (!token) {
       res.status(401).json({ error: 'Missing Google access token' });
       return;
@@ -41,17 +42,12 @@ export function createGoogleUserAuthMiddleware(
       const email = await getEmailFromGoogleAccessToken(token);
       const context: GoogleUserContext = { email, googleAccessToken: token };
 
-      const proceed = (): void => {
-        options.onVerified?.(context);
-        next();
-      };
-
       if (options.userContext) {
-        options.userContext.run(context, proceed);
+        options.userContext.run(context, next);
         return;
       }
 
-      proceed();
+      next();
     } catch {
       res.status(403).json({ error: 'Forbidden' });
     }

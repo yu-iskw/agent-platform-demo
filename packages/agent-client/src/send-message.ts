@@ -1,6 +1,6 @@
 import { A2AClient } from '@a2a-js/sdk/client';
-import { buildA2aDemoMetadata, type DemoAction, type DemoMode } from '@agent-platform/mcp-auth';
 
+import { buildA2aDemoMetadata, type DemoAction, type DemoMode } from './a2a-demo-metadata.js';
 import { resolveAgentCardUrl } from './fetch-agent-card.js';
 import { parseSendMessageResponse } from './parse-response.js';
 import { runWithUserAuthorization } from './session-fetch.js';

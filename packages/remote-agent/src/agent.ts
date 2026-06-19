@@ -7,7 +7,7 @@ import {
   stringifyContent,
 } from '@google/adk';
 
-import { getVerifiedGoogleUser } from './session-context.js';
+import { getVerifiedGoogleUser } from './user-context.js';
 
 const MCP_SERVER_URL = process.env.MCP_SERVER_URL ?? 'http://localhost:8080/mcp';
 const GOOGLE_CLOUD_PROJECT = process.env.GOOGLE_CLOUD_PROJECT;

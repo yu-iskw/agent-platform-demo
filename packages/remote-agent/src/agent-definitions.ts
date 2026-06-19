@@ -1,23 +1,14 @@
-import {
-  buildBigQueryAgentCard,
-  buildGeneralAgentCard,
-  createAgentExecutor,
-} from './a2a-executor.js';
+import { normalizeBaseUrl } from '@agent-platform/agent-client';
+
+import { createAgentExecutor } from './agent-executor.js';
 import { runBigQueryAgentPrompt, runGeneralAgentPrompt } from './agent.js';
+import { buildBigQueryAgentCard, buildGeneralAgentCard } from './demo-agent-cards.js';
+import { runDirectTool } from './direct-tools.js';
 
-import type { AgentCard } from '@a2a-js/sdk';
-import type { AgentExecutor } from '@a2a-js/sdk/server';
-
-export type AgentDefinition = {
-  id: string;
-  mountPath: string;
-  legacyRoot?: boolean;
-  buildCard: (publicBaseUrl: string) => AgentCard;
-  createExecutor: () => AgentExecutor;
-};
+import type { AgentDefinition } from '@agent-platform/a2a-server';
 
 function agentServiceUrl(publicBaseUrl: string, mountPath: string): string {
-  return `${publicBaseUrl.replace(/\/$/, '')}${mountPath}`;
+  return `${normalizeBaseUrl(publicBaseUrl)}${mountPath}`;
 }
 
 export function getAgentDefinitions(): AgentDefinition[] {
@@ -28,7 +19,12 @@ export function getAgentDefinitions(): AgentDefinition[] {
       legacyRoot: true,
       buildCard: (publicBaseUrl) =>
         buildBigQueryAgentCard(agentServiceUrl(publicBaseUrl, '/agents/bigquery')),
-      createExecutor: () => createAgentExecutor(runBigQueryAgentPrompt, { allowDirectTools: true }),
+      buildLegacyCard: (publicBaseUrl) => buildBigQueryAgentCard(normalizeBaseUrl(publicBaseUrl)),
+      createExecutor: () =>
+        createAgentExecutor(runBigQueryAgentPrompt, {
+          allowDirectTools: true,
+          runDirectTool,
+        }),
     },
     {
       id: 'general',

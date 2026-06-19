@@ -1,21 +1,15 @@
-import { randomUUID } from 'node:crypto';
-
 import {
   assertServiceAuthModeAllowed,
-  getEmailFromGoogleAccessToken,
+  authRouteRateLimit,
+  createMcpSessionRegistry,
   getHttpHeader,
-  resolveDelegatedUserAccessToken,
-  resolvePrmResourceUrl,
+  INVALID_SESSION_RESPONSE,
+  mountMcpOAuthRoutes,
+  runAuthorizedMcpRequest,
   USER_ACCESS_TOKEN_HEADER,
   verifyMcpServiceCaller,
-  writeProtectedResourceMetadata,
-  authRouteRateLimit,
-  type GoogleUserContext,
-  type ServiceCallerIdentity,
 } from '@agent-platform/mcp-auth';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import express, { json } from 'express';
 import { z } from 'zod';
 
@@ -39,10 +33,6 @@ if (!BQ_METADATA_READER_SA_EMAIL) {
 const GOOGLE_OAUTH_AUTHORIZATION_SERVER = 'https://accounts.google.com';
 
 const serverUrl = new URL(MCP_RESOURCE_URL);
-
-const MCP_SESSION_HEADER = 'mcp-session-id';
-const INVALID_SESSION_MESSAGE = 'Invalid or missing session';
-const INVALID_SESSION_RESPONSE = 'Invalid session';
 
 function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -98,105 +88,33 @@ function createMcpServer(): McpServer {
   return server;
 }
 
-const sessions = new Map<string, StreamableHTTPServerTransport>();
+const sessionRegistry = createMcpSessionRegistry({ createMcpServer });
 
 const app = express();
 app.use(json());
 
-app.get('/.well-known/oauth-protected-resource', (req, res) => {
-  writeProtectedResourceMetadata(res, {
-    resource: resolvePrmResourceUrl(req.headers, serverUrl.toString()),
-    authorizationServers: [GOOGLE_OAUTH_AUTHORIZATION_SERVER],
-    scopesSupported: ['openid', 'email', 'https://www.googleapis.com/auth/bigquery'],
-  });
+mountMcpOAuthRoutes(app, {
+  mcpResourceUrl: MCP_RESOURCE_URL,
 });
 
 app.get('/healthz', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-async function verifyDelegatedUserAccessToken(userToken: string): Promise<GoogleUserContext> {
-  const email = await getEmailFromGoogleAccessToken(userToken);
-
-  return { email, googleAccessToken: userToken };
-}
-
-async function runAuthorizedMcpRequest(
-  req: Request,
-  res: Response,
-  options: {
-    allowInitialize: boolean;
-    onUnauthorized: () => void;
-    onMissingUserToken: () => void;
-    onInvalidUserToken: () => void;
-    onInvalidSession: () => void;
-    handle: (transport: StreamableHTTPServerTransport, user: GoogleUserContext) => Promise<void>;
-  },
-): Promise<void> {
-  let caller: ServiceCallerIdentity | undefined;
-  try {
-    caller = await ensureServiceAuth(req);
-  } catch {
-    options.onUnauthorized();
-    return;
-  }
-
-  const sessionId = getHttpHeader(req.headers, MCP_SESSION_HEADER);
-  const transport = options.allowInitialize
-    ? await resolveTransport(req, res, sessionId)
-    : getExistingTransport(sessionId);
-
-  if (!transport) {
-    if (!options.allowInitialize) {
-      options.onInvalidSession();
-    }
-    return;
-  }
-
-  const userToken = resolveDelegatedUserAccessToken(req.headers, {
-    excludeJwtFromAuthorization: true,
+async function ensureServiceAuth(req: Request) {
+  const authorization = getHttpHeader(req.headers, 'authorization');
+  return await verifyMcpServiceCaller(authorization, {
+    authMode: AUTH_MODE,
+    expectedServiceAccountEmail: EXPECTED_CALLER_SA_EMAIL,
+    audience: serverUrl.origin,
   });
-  if (!userToken) {
-    options.onMissingUserToken();
-    return;
-  }
-
-  let user: GoogleUserContext;
-  try {
-    user = await verifyDelegatedUserAccessToken(userToken);
-    if (caller && !caller.isServiceAccount && caller.email !== user.email) {
-      throw new Error('Delegated user token does not match caller identity');
-    }
-  } catch {
-    options.onInvalidUserToken();
-    return;
-  }
-
-  await options.handle(transport, user);
 }
-
-app.post('/mcp', authRouteRateLimit, async (req, res) => {
-  await runAuthorizedMcpRequest(req, res, {
-    allowInitialize: true,
-    onUnauthorized: () => res.status(401).json({ error: 'Unauthorized service caller' }),
-    onMissingUserToken: () =>
-      res.status(400).json({
-        error: `Missing ${USER_ACCESS_TOKEN_HEADER} header or Google access token on Authorization`,
-      }),
-    onInvalidUserToken: () =>
-      res.status(403).json({ error: 'Invalid or forbidden user access token' }),
-    onInvalidSession: () => {},
-    handle: async (transport, user) => {
-      await verifiedUserStorage.run(user, async () => {
-        await transport.handleRequest(req, res, req.body);
-      });
-    },
-  });
-});
 
 async function handleSessionTransportRequest(req: Request, res: Response): Promise<void> {
   await runAuthorizedMcpRequest(req, res, {
+    sessionRegistry,
     allowInitialize: false,
+    verifyServiceCaller: ensureServiceAuth,
     onUnauthorized: () => res.status(401).end('Unauthorized'),
     onMissingUserToken: () =>
       res
@@ -212,62 +130,25 @@ async function handleSessionTransportRequest(req: Request, res: Response): Promi
   });
 }
 
-async function ensureServiceAuth(req: Request): Promise<ServiceCallerIdentity | undefined> {
-  const authorization = getHttpHeader(req.headers, 'authorization');
-  return verifyMcpServiceCaller(authorization, {
-    authMode: AUTH_MODE,
-    expectedServiceAccountEmail: EXPECTED_CALLER_SA_EMAIL,
-    audience: serverUrl.origin,
+app.post('/mcp', authRouteRateLimit, async (req, res) => {
+  await runAuthorizedMcpRequest(req, res, {
+    sessionRegistry,
+    allowInitialize: true,
+    verifyServiceCaller: ensureServiceAuth,
+    onUnauthorized: () => res.status(401).json({ error: 'Unauthorized service caller' }),
+    onMissingUserToken: () =>
+      res.status(400).json({
+        error: `Missing ${USER_ACCESS_TOKEN_HEADER} header or Google access token on Authorization`,
+      }),
+    onInvalidUserToken: () =>
+      res.status(403).json({ error: 'Invalid or forbidden user access token' }),
+    handle: async (transport, user) => {
+      await verifiedUserStorage.run(user, async () => {
+        await transport.handleRequest(req, res, req.body);
+      });
+    },
   });
-}
-
-function getExistingTransport(
-  sessionId: string | undefined,
-): StreamableHTTPServerTransport | undefined {
-  if (sessionId === undefined) {
-    return undefined;
-  }
-
-  return sessions.get(sessionId);
-}
-
-async function resolveTransport(
-  req: Request,
-  res: Response,
-  sessionId: string | undefined,
-): Promise<StreamableHTTPServerTransport | undefined> {
-  const existing = getExistingTransport(sessionId);
-  if (existing) {
-    return existing;
-  }
-
-  if (sessionId === undefined && isInitializeRequest(req.body)) {
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => randomUUID(),
-      onsessioninitialized: (id) => {
-        sessions.set(id, transport);
-      },
-    });
-
-    transport.onclose = () => {
-      const id = transport.sessionId;
-      if (id) {
-        sessions.delete(id);
-      }
-    };
-
-    const server = createMcpServer();
-    await server.connect(transport);
-    return transport;
-  }
-
-  res.status(400).json({
-    jsonrpc: '2.0',
-    error: { code: -32000, message: INVALID_SESSION_MESSAGE },
-    id: null,
-  });
-  return undefined;
-}
+});
 
 app.get('/mcp', authRouteRateLimit, (req, res) => {
   void handleSessionTransportRequest(req, res);

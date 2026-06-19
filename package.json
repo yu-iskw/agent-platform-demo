@@ -23,7 +23,7 @@
     "lint:trunk-all": "trunk check --all -y",
     "security:grype": "grype .",
     "knip": "knip",
-    "postinstall": "pnpm --filter @agent-platform/mcp-auth build && pnpm --filter @agent-platform/agent-client build",
+    "postinstall": "pnpm --filter @agent-platform/mcp-auth build && pnpm --filter @agent-platform/agent-client build && pnpm --filter @agent-platform/a2a-server build",
     "codeql:local": "bash dev/codeql.sh",
     "pretest": "pnpm build",
     "test": "vitest run",

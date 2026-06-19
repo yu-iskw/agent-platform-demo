@@ -2,9 +2,9 @@ import { buildMcpCallerHeaders } from '@agent-platform/mcp-auth';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
-import { getVerifiedGoogleUser } from './session-context.js';
+import { getVerifiedGoogleUser } from './user-context.js';
 
-import type { DemoAction } from '@agent-platform/mcp-auth';
+import type { DemoAction } from '@agent-platform/agent-client';
 
 const MCP_SERVER_URL = process.env.MCP_SERVER_URL ?? 'http://localhost:8080/mcp';
 const DEFAULT_PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT ?? 'ubie-yu-sandbox';

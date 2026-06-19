@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolvePrmResourceUrl } from './mcp-auth-middleware.js';
+import { resolvePrmResourceUrl } from './mcp-protected-resource.js';
 
 describe('resolvePrmResourceUrl', () => {
   const fallback = 'https://bq-mcp.example.run.app/mcp';

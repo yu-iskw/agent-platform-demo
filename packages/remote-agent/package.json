@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@a2a-js/sdk": "^0.3.13",
+    "@agent-platform/a2a-server": "workspace:*",
+    "@agent-platform/agent-client": "workspace:*",
     "@agent-platform/mcp-auth": "workspace:*",
     "@google/adk": "^1.2.0",
     "@modelcontextprotocol/sdk": "^1.17.0",

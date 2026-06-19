@@ -1,18 +1,20 @@
 import express from 'express';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { initAgentPolicy, setAgentEnabled } from './agent-policy.js';
+import { createAgentPolicyStore } from './agent-policy-store.js';
 import { mountA2aAgents } from './mount-a2a-agents.js';
+import { testDefinitions } from './test-fixtures.js';
 
 import type { Server } from 'node:http';
 
-const BASE_URL = 'http://localhost:9999';
+const MOUNT_TEST_BASE_URL = 'http://localhost:9999';
 
-function mountTestApp(): express.Express {
+function mountTestApp(policy: ReturnType<typeof createAgentPolicyStore>): express.Express {
   const app = express();
-  initAgentPolicy(BASE_URL);
   mountA2aAgents(app, {
-    publicBaseUrl: BASE_URL,
+    publicBaseUrl: MOUNT_TEST_BASE_URL,
+    definitions: testDefinitions,
+    policy,
     authMiddleware: (_req, _res, next) => {
       next();
     },
@@ -48,13 +50,10 @@ async function listen(
 }
 
 describe('mountA2aAgents', () => {
-  afterEach(() => {
-    initAgentPolicy(BASE_URL);
-  });
-
   it('serves enabled per-agent cards without legacy root intercepting other agents', async () => {
-    const app = mountTestApp();
-    setAgentEnabled('bigquery', false);
+    const policy = createAgentPolicyStore(testDefinitions, MOUNT_TEST_BASE_URL);
+    policy.setEnabled('bigquery', false);
+    const app = mountTestApp(policy);
     const { baseUrl, close } = await listen(app);
 
     try {

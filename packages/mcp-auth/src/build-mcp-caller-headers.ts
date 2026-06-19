@@ -1,4 +1,4 @@
-import { fetchCloudRunIdToken } from './service-auth.js';
+import { fetchCloudRunIdToken } from './service-auth-outbound.js';
 import { USER_ACCESS_TOKEN_HEADER } from './user-access-token.js';
 
 export async function buildMcpCallerHeaders(

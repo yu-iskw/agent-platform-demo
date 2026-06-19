@@ -5,18 +5,11 @@ import {
   agentCardHandler,
   jsonRpcHandler,
 } from '@a2a-js/sdk/server/express';
+import { normalizeBaseUrl } from '@agent-platform/agent-client';
 import { json } from 'express';
 
-import { buildBigQueryAgentCard } from './a2a-executor.js';
-import { getAgentDefinitions } from './agent-definitions.js';
-import {
-  getEnabledAgentDefinitions,
-  isAgentEnabled,
-  listAgentPolicy,
-  setAgentEnabled,
-} from './agent-policy.js';
-
-import type { AgentDefinition } from './agent-definitions.js';
+import type { AgentDefinition } from './agent-definition.js';
+import type { AgentPolicyStore } from './agent-policy-store.js';
 import type { RequestHandler, Application } from 'express';
 
 const AGENT_CARD_FILENAME = 'agent-card.json';
@@ -42,17 +35,15 @@ type ApiCatalog = {
 export type MountA2aAgentsOptions = {
   publicBaseUrl: string;
   authMiddleware: RequestHandler;
+  definitions: AgentDefinition[];
+  policy: AgentPolicyStore;
 };
 
-function normalizeBaseUrl(url: string): string {
-  return url.replace(/\/$/, '');
-}
-
-function buildApiCatalog(publicBaseUrl: string): ApiCatalog {
+function buildApiCatalog(publicBaseUrl: string, policy: AgentPolicyStore): ApiCatalog {
   const base = normalizeBaseUrl(publicBaseUrl);
 
   return {
-    linkset: getEnabledAgentDefinitions().map((definition) => {
+    linkset: policy.getEnabledDefinitions().map((definition) => {
       const anchor = `${base}${definition.mountPath}`;
       return {
         anchor,
@@ -68,9 +59,9 @@ function buildApiCatalog(publicBaseUrl: string): ApiCatalog {
   };
 }
 
-function createEnabledGuard(agentId: string): RequestHandler {
+function createEnabledGuard(policy: AgentPolicyStore, agentId: string): RequestHandler {
   return (_req, res, next) => {
-    if (!isAgentEnabled(agentId)) {
+    if (!policy.isEnabled(agentId)) {
       res.status(404).json({ error: 'Agent disabled' });
       return;
     }
@@ -83,10 +74,11 @@ function mountLegacyRootRoutes(
   options: MountA2aAgentsOptions,
   definition: AgentDefinition,
 ): void {
-  const { authMiddleware } = options;
-  const enabledGuard = createEnabledGuard(definition.id);
+  const { authMiddleware, policy } = options;
+  const enabledGuard = createEnabledGuard(policy, definition.id);
   const legacyStack: RequestHandler[] = [authMiddleware, enabledGuard];
-  const legacyCard = buildBigQueryAgentCard(normalizeBaseUrl(options.publicBaseUrl));
+  const buildLegacyCard = definition.buildLegacyCard ?? definition.buildCard;
+  const legacyCard = buildLegacyCard(normalizeBaseUrl(options.publicBaseUrl));
   const requestHandler = new DefaultRequestHandler(
     legacyCard,
     new InMemoryTaskStore(),
@@ -112,8 +104,8 @@ function mountAgentRoutes(
   options: MountA2aAgentsOptions,
   definition: AgentDefinition,
 ): void {
-  const { authMiddleware } = options;
-  const enabledGuard = createEnabledGuard(definition.id);
+  const { authMiddleware, policy } = options;
+  const enabledGuard = createEnabledGuard(policy, definition.id);
   const agentCard = definition.buildCard(options.publicBaseUrl);
   const requestHandler = new DefaultRequestHandler(
     agentCard,
@@ -135,9 +127,13 @@ function mountAgentRoutes(
   }
 }
 
-function mountAgentPolicyRoutes(app: Application, authMiddleware: RequestHandler): void {
+function mountAgentPolicyRoutes(
+  app: Application,
+  authMiddleware: RequestHandler,
+  policy: AgentPolicyStore,
+): void {
   app.get(AGENT_POLICY_PATH, authMiddleware, (_req, res) => {
-    res.json({ agents: listAgentPolicy() });
+    res.json({ agents: policy.list() });
   });
 
   app.patch(AGENT_POLICY_PATH, authMiddleware, json(), (req, res) => {
@@ -151,8 +147,8 @@ function mountAgentPolicyRoutes(app: Application, authMiddleware: RequestHandler
     }
 
     try {
-      setAgentEnabled(agentId, enabled);
-      res.json({ agents: listAgentPolicy() });
+      policy.setEnabled(agentId, enabled);
+      res.json({ agents: policy.list() });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Policy update failed';
       res.status(400).json({ error: message });
@@ -161,13 +157,15 @@ function mountAgentPolicyRoutes(app: Application, authMiddleware: RequestHandler
 }
 
 export function mountA2aAgents(app: Application, options: MountA2aAgentsOptions): void {
+  const { policy, definitions } = options;
+
   app.get(API_CATALOG_PATH, (_req, res) => {
-    res.type('application/linkset+json').json(buildApiCatalog(options.publicBaseUrl));
+    res.type('application/linkset+json').json(buildApiCatalog(options.publicBaseUrl, policy));
   });
 
-  mountAgentPolicyRoutes(app, options.authMiddleware);
+  mountAgentPolicyRoutes(app, options.authMiddleware, policy);
 
-  for (const definition of getAgentDefinitions()) {
+  for (const definition of definitions) {
     mountAgentRoutes(app, options, definition);
   }
 }

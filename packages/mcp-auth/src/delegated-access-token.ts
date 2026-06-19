@@ -1,6 +1,6 @@
 import { getHttpHeader } from './http-header.js';
-import { looksLikeJwtIdToken } from './service-auth.js';
 import { extractBearerToken, SESSION_AUTHORIZATION_HEADER } from './session-jwt.js';
+import { looksLikeJwtIdToken } from './token-heuristic.js';
 import { getUserAccessTokenFromHeaders } from './user-access-token.js';
 
 export type ResolveDelegatedUserAccessTokenOptions = {

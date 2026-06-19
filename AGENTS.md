@@ -118,6 +118,7 @@ When you want durable fixes (not one-off chat advice):
 - Request plans with architecture diagrams before implementing non-trivial changes.
 - Use structured problem-solving analysis (`/problem-solving`) before major architectural or design decisions.
 - Execute attached plans as specified without editing the plan file itself.
+- Do not create git commits unless explicitly requested.
 - Do not spawn shell commands from TypeScript application code; pass Google access tokens via environment variables (e.g. from `gcloud auth print-access-token`) instead.
 - Application code must be TypeScript; TypeScript packages belong under `packages/`.
 
@@ -125,12 +126,13 @@ When you want durable fixes (not one-off chat advice):
 
 - Demo: remote A2A agent chained to MCP servers (BigQuery): separate pnpm workspace packages for web-chat, remote-agent, bq-mcp-server, mcp-auth, and related tooling.
 - `bq-mcp` and `remote-agent` run on private Cloud Run; IDE/MCP clients use `scripts/proxy-mcp.sh` (:8080) and `scripts/proxy-agent.sh` (:8081).
-- `remote-agent` exposes both A2A (agent-cli, web-chat) and MCP (`/mcp` with a `chat` tool); `bq-mcp` exposes direct BigQuery MCP tools (`list_datasets`, `get_authenticated_user`).
-- `web-chat` talks to `remote-agent` via A2A for chat (never directly to `bq-mcp`). Platform-info loads live A2A + agent MCP metadata only; bq-mcp tool list is documented statically (chain: web-chat → remote-agent → bq-mcp).
+- `remote-agent` hosts multiple A2A agents on one Cloud Run service (`/agents/{id}/agent-card.json`, RFC 9727 `/.well-known/api-catalog`); runtime enable/disable via `GET/PATCH /agent-policy` (in-memory, resets on restart). Legacy BigQuery card at `/.well-known/agent-card.json` requires path-specific mounts—a catch-all A2A middleware blocks other agent routes when BigQuery is disabled.
+- `remote-agent` also exposes MCP (`/mcp` with a `chat` tool); `bq-mcp` exposes direct BigQuery MCP tools (`list_datasets`, `get_authenticated_user`). Chain: web-chat → remote-agent → bq-mcp (web-chat never calls bq-mcp directly).
+- `web-chat` discovers agents from the API catalog, selects an agent in the UI, and chats via A2A. Chat mode (local vs remote) is stored in an httpOnly cookie via `/api/chat-mode`, not the request body. Intent-based routing sends BigQuery-flavored prompts to the bigquery agent when enabled even if General is selected.
+- `agent-client` connects with `A2AClient.fromCardUrl(resolveAgentCardUrl(...))` and validates agent host URLs (localhost / `*.run.app`) and agent IDs for SSRF-safe fetches.
+- Root `postinstall` builds `mcp-auth` + `agent-client`; `pretest` runs full `pnpm build` so CI ESLint and vitest resolve workspace packages on clean runners.
 - Launch web-chat against Cloud Run with `./scripts/run-web-chat.sh` (direct `AGENT_URL` + gcloud ADC for IAM, not `proxy-agent.sh`); OAuth credentials live in `terraform/terraform.tfvars`, not `packages/web-chat/.env.local`.
 - web-chat OAuth requires a Desktop or Web application client in `terraform.tfvars` (`web_oauth_client_id`); Terraform’s IAP OAuth client cannot register localhost redirect URIs—use `./scripts/setup-web-oauth.sh`.
 - Cursor MCP uses `.cursor/mcp.json` (Claude Code: `.mcp.json`); localhost proxy URLs + PRM discovery; requires a pre-registered Desktop OAuth client via `MCP_GOOGLE_OAUTH_CLIENT_ID` (not `web_oauth_client_id`)—Google has no MCP dynamic client registration. Only web-chat runs a browser OAuth redirect; agent and MCP validate tokens obtained elsewhere.
-- A2A SDK 0.3 serves `/.well-known/agent-card.json` with `protocolVersion: '0.3.0'`; `A2AExpressApp` imports from `@a2a-js/sdk/server/express`. `@google/adk` 1.x requires `sqlite3: true` in `pnpm-workspace.yaml` `allowBuilds`. `web-chat` runs Next.js 16 (Turbopack default).
-- Cloud Run services deploy via shell scripts (`deploy-mcp.sh`, `deploy-agent.sh`), not Terraform; web-chat runs locally, not on Cloud Run.
-- BigQuery dataset listing impersonates a dedicated metadata-reader service account; authenticated-user lookups use the caller's OAuth token directly.
-- `allowed_emails` in Terraform grants Cloud Run `run.invoker` IAM only; runtime app auth relies on Google OAuth token validation, not email allowlists.
+- A2A SDK 0.3 serves agent cards at path-specific `agent-card.json` or legacy `/.well-known/agent-card.json`; `A2AExpressApp` imports from `@a2a-js/sdk/server/express`. `@google/adk` 1.x requires `sqlite3: true` in `pnpm-workspace.yaml` `allowBuilds`. `web-chat` runs Next.js 16 (Turbopack default).
+- Cloud Run services deploy via shell scripts (`deploy-mcp.sh`, `deploy-agent.sh`), not Terraform; web-chat runs locally, not on Cloud Run. BigQuery dataset listing impersonates a dedicated metadata-reader SA; authenticated-user lookups use the caller's OAuth token. `allowed_emails` in Terraform grants Cloud Run `run.invoker` IAM only—runtime auth is Google OAuth token validation, not email allowlists.

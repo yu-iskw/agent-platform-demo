@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createGoogleUserAuthMiddleware,
   type GoogleUserContext,
-} from './session-auth-middleware.js';
+} from './google-user-auth-middleware.js';
 
 vi.mock('./google-access-token.js', () => ({
   getEmailFromGoogleAccessToken: vi.fn((token: string) => {

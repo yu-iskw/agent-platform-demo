@@ -6,13 +6,13 @@ function isLocalHost(host: string): boolean {
   return host.startsWith('127.0.0.1') || host.startsWith('localhost') || host.startsWith('[::1]');
 }
 
-function resourceUrlFromLocalHost(host: string, proto: string): string | undefined {
+function resourceUrlFromLocalHost(host: string, _proto: string): string | undefined {
   const trimmedHost = host.split(',')[0]?.trim().split('/')[0]?.trim();
   if (!trimmedHost || !isLocalHost(trimmedHost)) {
     return undefined;
   }
 
-  const scheme = isLocalHost(trimmedHost) ? 'http' : proto;
+  const scheme = 'http';
   return `${scheme}://${trimmedHost}/mcp`;
 }
 

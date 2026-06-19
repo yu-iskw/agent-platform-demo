@@ -1,4 +1,4 @@
-import { extractTextFromMessage } from '@agent-platform/mcp-auth';
+import { extractTextFromMessage } from './a2a-message.js';
 
 import type { SendMessageResponse } from '@a2a-js/sdk';
 

@@ -7,7 +7,7 @@ FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/mcp-auth/package.json packages/mcp-auth/
 COPY packages/bq-mcp-server/package.json packages/bq-mcp-server/
-RUN pnpm install --frozen-lockfile --filter @agent-platform/bq-mcp-server...
+RUN pnpm install --frozen-lockfile --ignore-scripts --filter @agent-platform/bq-mcp-server...
 
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules

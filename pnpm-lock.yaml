@@ -64,6 +64,25 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@25.9.3)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
+  packages/a2a-server:
+    dependencies:
+      '@a2a-js/sdk':
+        specifier: ^0.3.13
+        version: 0.3.13(@grpc/grpc-js@1.14.4)(express@5.2.1)
+      '@agent-platform/agent-client':
+        specifier: workspace:*
+        version: link:../agent-client
+      express:
+        specifier: ^5.1.0
+        version: 5.2.1
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.3
+        version: 5.0.6
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+
   packages/agent-cli:
     dependencies:
       '@agent-platform/agent-client':
@@ -126,6 +145,12 @@ importers:
 
   packages/mcp-auth:
     dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.17.0
+        version: 1.29.0(zod@4.4.3)
+      express:
+        specifier: ^5.1.0
+        version: 5.2.1
       express-rate-limit:
         specifier: ^8.5.2
         version: 8.5.2(express@5.2.1)
@@ -136,6 +161,9 @@ importers:
         specifier: ^6.0.11
         version: 6.2.3
     devDependencies:
+      '@types/express':
+        specifier: ^5.0.3
+        version: 5.0.6
       '@types/node':
         specifier: ^25.9.3
         version: 25.9.3
@@ -145,6 +173,12 @@ importers:
       '@a2a-js/sdk':
         specifier: ^0.3.13
         version: 0.3.13(@grpc/grpc-js@1.14.4)(express@5.2.1)
+      '@agent-platform/a2a-server':
+        specifier: workspace:*
+        version: link:../a2a-server
+      '@agent-platform/agent-client':
+        specifier: workspace:*
+        version: link:../agent-client
       '@agent-platform/mcp-auth':
         specifier: workspace:*
         version: link:../mcp-auth
@@ -5539,7 +5573,7 @@ snapshots:
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
-      '@types/node': 24.13.2
+      '@types/node': 25.9.3
 
   '@types/caseless@0.12.5': {}
 
@@ -5550,7 +5584,7 @@ snapshots:
 
   '@types/connect@3.4.38':
     dependencies:
-      '@types/node': 24.13.2
+      '@types/node': 25.9.3
 
   '@types/deep-eql@4.0.2': {}
 
@@ -5560,7 +5594,7 @@ snapshots:
 
   '@types/express-serve-static-core@5.1.1':
     dependencies:
-      '@types/node': 24.13.2
+      '@types/node': 25.9.3
       '@types/qs': 6.15.1
       '@types/range-parser': 1.2.7
       '@types/send': 1.2.1
@@ -5604,7 +5638,7 @@ snapshots:
   '@types/request@2.48.13':
     dependencies:
       '@types/caseless': 0.12.5
-      '@types/node': 24.13.2
+      '@types/node': 25.9.3
       '@types/tough-cookie': 4.0.5
       form-data: 2.5.6
 
@@ -5612,12 +5646,12 @@ snapshots:
 
   '@types/send@1.2.1':
     dependencies:
-      '@types/node': 24.13.2
+      '@types/node': 25.9.3
 
   '@types/serve-static@2.2.0':
     dependencies:
       '@types/http-errors': 2.0.5
-      '@types/node': 24.13.2
+      '@types/node': 25.9.3
 
   '@types/tough-cookie@4.0.5': {}
 
@@ -7902,7 +7936,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 24.13.2
+      '@types/node': 25.9.3
       long: 5.3.2
 
   proxy-addr@2.0.7:
