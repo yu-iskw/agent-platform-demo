@@ -166,6 +166,8 @@ gcloud run services describe bq-mcp --region=asia-northeast1 --format='value(sta
 
 Web-chat and `agent-cli` talk to **remote-agent** over A2A. The agent forwards the user's Google token for identity; bq-mcp impersonates `bq-metadata-reader` for BigQuery.
 
+**Multi-agent (same Cloud Run service):** `remote-agent` hosts multiple A2A agents under path prefixes (`/agents/bigquery`, `/agents/general`). Discover enabled agents via RFC 9727 API Catalog at `GET /.well-known/api-catalog` on the service root; each entry links to `{anchor}/agent-card.json`. The legacy BigQuery card remains at `/.well-known/agent-card.json` for backward compatibility. Web-chat loads the catalog, shows an agent card picker when remote A2A is enabled, and toggles availability via `GET/PATCH /agent-policy` (Google auth required). All agents start enabled at startup; runtime toggles are in-memory only and reset when remote-agent restarts.
+
 **Local:** [`run-local-dev.sh`](scripts/run-local-dev.sh) — agent at `http://127.0.0.1:8081`, Google bearer on `Authorization`.
 
 **Cloud Run:** [`run-cloud-check.sh`](scripts/run-cloud-check.sh) — Cloud Run identity token on `Authorization`, `gcloud auth print-access-token` on `X-Session-Authorization`.

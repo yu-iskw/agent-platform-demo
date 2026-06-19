@@ -46,4 +46,10 @@ gcloud run services update remote-agent \
 log "Deployed remote-agent at ${AGENT_URL} (MCP: ${MCP_RESOURCE_URL})"
 log "Run ./scripts/run-web-chat.sh for local web-chat (Cloud Run agent, direct URL)"
 
+require_gcloud_user_auth
+if ! verify_remote_agent_api_catalog "${AGENT_URL}"; then
+	echo "remote-agent deploy finished but API catalog check failed." >&2
+	exit 1
+fi
+
 grant_run_invoker_to_allowed_users remote-agent

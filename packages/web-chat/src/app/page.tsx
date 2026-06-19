@@ -11,8 +11,8 @@ export default async function HomePage(): Promise<React.JSX.Element> {
     <main style={{ maxWidth: 720, margin: '2rem auto', fontFamily: 'system-ui, sans-serif' }}>
       <h1>Demo: Chain of Remote A2A Agent and MCP Servers</h1>
       <p>
-        Local web-chat agent is the default. Enable remote-agent to delegate over A2A and load live
-        connection details from the agent.
+        Local web-chat agent is the default. Enable remote-agent to discover multiple A2A agents on
+        one Cloud Run service, toggle each agent on or off at runtime, and delegate chat over A2A.
       </p>
       {session ? (
         <ChatClient email={session.email} />

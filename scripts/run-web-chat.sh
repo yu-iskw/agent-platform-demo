@@ -137,6 +137,16 @@ log "  If chat returns 403, ensure your email is in terraform allowed_emails (ru
 
 prepare_web_chat_dev_port "${WEB_CHAT_PORT}" "${FORCE}" "${WEB_CHAT_NEXT}"
 
+warn_if_cloud_run_images_stale || true
+case "${AGENT_URL}" in
+https://*.run.app*)
+	verify_remote_agent_api_catalog "${AGENT_URL}" || true
+	;;
+esac
+
 cd "${ROOT_DIR}"
+log "Building @agent-platform/agent-client (web-chat imports dist/)"
+pnpm --filter @agent-platform/agent-client build
+
 export OAUTH_REDIRECT_URI AGENT_URL SESSION_SECRET GOOGLE_CLOUD_PROJECT GOOGLE_CLOUD_LOCATION
 exec pnpm --filter @agent-platform/web-chat exec next dev --port "${WEB_CHAT_PORT}"

@@ -1,25 +1,15 @@
-import { DefaultRequestHandler, InMemoryTaskStore } from '@a2a-js/sdk/server';
-import { A2AExpressApp } from '@a2a-js/sdk/server/express';
 import { createGoogleUserAuthMiddleware } from '@agent-platform/mcp-auth';
 import express, { json } from 'express';
 
-import { BigQueryAgentExecutor, buildAgentCard } from './a2a-executor.js';
+import { initAgentPolicy, listAgentPolicy } from './agent-policy.js';
 import { mountAgentMcpRoutes } from './mcp-routes.js';
+import { mountA2aAgents } from './mount-a2a-agents.js';
 import { verifiedUserStorage } from './session-context.js';
-
-import type { AgentCard } from '@a2a-js/sdk';
 
 const PORT = Number(process.env.PORT ?? 8081);
 const HOST = process.env.HOST ?? '0.0.0.0';
 const PUBLIC_AGENT_URL = process.env.PUBLIC_AGENT_URL ?? `http://localhost:${PORT}`;
 const MCP_RESOURCE_URL = process.env.MCP_RESOURCE_URL ?? `http://localhost:${PORT}/mcp`;
-
-const agentCard: AgentCard = buildAgentCard(PUBLIC_AGENT_URL);
-const requestHandler = new DefaultRequestHandler(
-  agentCard,
-  new InMemoryTaskStore(),
-  new BigQueryAgentExecutor(),
-);
 
 const app = express();
 
@@ -36,12 +26,20 @@ const googleUserAuthMiddleware = createGoogleUserAuthMiddleware({
   userContext: verifiedUserStorage,
 });
 
-const a2aApp = new A2AExpressApp(requestHandler);
-// @a2a-js/sdk types target Express 4; runtime uses Express 5.
-a2aApp.setupRoutes(app as never, '', [googleUserAuthMiddleware as never]);
+initAgentPolicy(PUBLIC_AGENT_URL);
+
+mountA2aAgents(app, {
+  publicBaseUrl: PUBLIC_AGENT_URL,
+  authMiddleware: googleUserAuthMiddleware,
+});
 
 app.listen(PORT, HOST, () => {
   console.log(`remote-agent listening on http://${HOST}:${PORT}`);
-  console.log(`Agent card: http://${HOST}:${PORT}/.well-known/agent-card.json`);
+  console.log(`API catalog: http://${HOST}:${PORT}/.well-known/api-catalog`);
+  console.log(`Agent policy: http://${HOST}:${PORT}/agent-policy`);
+  console.log(`Agent card (legacy): http://${HOST}:${PORT}/.well-known/agent-card.json`);
   console.log(`MCP endpoint: ${MCP_RESOURCE_URL}`);
+  for (const agent of listAgentPolicy()) {
+    console.log(`Agent ${agent.id}: ${agent.enabled ? 'enabled' : 'disabled'}`);
+  }
 });

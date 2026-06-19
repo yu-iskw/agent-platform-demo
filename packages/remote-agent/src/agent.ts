@@ -15,7 +15,7 @@ const BQ_METADATA_READER_SA_EMAIL = process.env.BQ_METADATA_READER_SA_EMAIL?.tri
 
 const MCP_TOOL_NAMES = ['list_datasets', 'get_authenticated_user'] as const;
 
-async function createAgent(): Promise<LlmAgent> {
+async function createBigQueryAgent(): Promise<LlmAgent> {
   const { email, googleAccessToken } = getVerifiedGoogleUser();
   const mcpBaseUrl = MCP_SERVER_URL.replace(/\/mcp\/?$/, '');
   const headers = await buildMcpCallerHeaders(mcpBaseUrl, googleAccessToken);
@@ -58,9 +58,23 @@ Use list_datasets when asked about datasets. When asked who they are, which Goog
   });
 }
 
-export async function runAgentPrompt(userMessage: string): Promise<string> {
+function createGeneralAgent(): LlmAgent {
+  const { email } = getVerifiedGoogleUser();
+
+  return new LlmAgent({
+    model: process.env.AGENT_MODEL ?? 'gemini-2.5-flash',
+    name: 'general_assistant',
+    instruction: `You are a helpful general assistant for ${email}. Answer clearly in plain text. You do not have BigQuery or MCP tools in this mode.`,
+    tools: [],
+  });
+}
+
+async function runLlmAgentPrompt(
+  createAgent: () => LlmAgent | Promise<LlmAgent>,
+  appName: string,
+  userMessage: string,
+): Promise<string> {
   const agent = await createAgent();
-  const appName = 'bigquery_assistant';
   const runner = new InMemoryRunner({ agent, appName });
   const { email } = getVerifiedGoogleUser();
   const sessionId = crypto.randomUUID();
@@ -109,4 +123,12 @@ export async function runAgentPrompt(userMessage: string): Promise<string> {
   }
 
   return 'No response from agent';
+}
+
+export async function runBigQueryAgentPrompt(userMessage: string): Promise<string> {
+  return runLlmAgentPrompt(createBigQueryAgent, 'bigquery_assistant', userMessage);
+}
+
+export async function runGeneralAgentPrompt(userMessage: string): Promise<string> {
+  return runLlmAgentPrompt(createGeneralAgent, 'general_assistant', userMessage);
 }

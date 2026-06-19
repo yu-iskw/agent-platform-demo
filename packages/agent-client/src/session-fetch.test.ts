@@ -5,10 +5,16 @@ import { shouldApplyCloudRunAgentAuth } from './session-fetch.js';
 describe('shouldApplyCloudRunAgentAuth', () => {
   const agentUrl = 'https://remote-agent-abc.asia-northeast1.run.app';
 
-  it('applies for agent card and agent MCP on the same origin', () => {
+  it('applies for agent card, api catalog, and agent MCP on the same origin', () => {
     expect(shouldApplyCloudRunAgentAuth(`${agentUrl}/.well-known/agent-card.json`, agentUrl)).toBe(
       true,
     );
+    expect(shouldApplyCloudRunAgentAuth(`${agentUrl}/.well-known/api-catalog`, agentUrl)).toBe(
+      true,
+    );
+    expect(
+      shouldApplyCloudRunAgentAuth(`${agentUrl}/agents/bigquery/agent-card.json`, agentUrl),
+    ).toBe(true);
     expect(shouldApplyCloudRunAgentAuth(`${agentUrl}/mcp`, agentUrl)).toBe(true);
   });
 

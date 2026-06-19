@@ -14,7 +14,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
-import { runAgentPrompt } from './agent.js';
+import { runBigQueryAgentPrompt } from './agent.js';
 import { verifiedUserStorage } from './session-context.js';
 
 import type { Application, Request, Response } from 'express';
@@ -43,7 +43,7 @@ function createMcpServer(): McpServer {
       },
     },
     async ({ message }) => {
-      const responseText = await runAgentPrompt(message);
+      const responseText = await runBigQueryAgentPrompt(message);
       return {
         content: [{ type: 'text', text: responseText }],
       };

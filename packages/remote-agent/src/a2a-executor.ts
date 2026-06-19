@@ -1,53 +1,72 @@
 import { extractTextFromMessage, parseA2aDemoMetadata } from '@agent-platform/mcp-auth';
 
-import { runAgentPrompt } from './agent.js';
 import { runDirectTool } from './direct-tools.js';
 
 import type { AgentCard } from '@a2a-js/sdk';
 import type { AgentExecutor, ExecutionEventBus, RequestContext } from '@a2a-js/sdk/server';
 
-export class BigQueryAgentExecutor implements AgentExecutor {
-  async execute(context: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
-    try {
-      const demo = parseA2aDemoMetadata(context.userMessage);
-      let responseText: string;
+const GOOGLE_SECURITY = {
+  securitySchemes: {
+    google: {
+      type: 'openIdConnect' as const,
+      openIdConnectUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+    },
+  },
+  security: [{ google: [] }],
+};
 
-      if (demo.mode === 'direct') {
-        if (!demo.action) {
-          throw new Error('Direct tool mode requires demo.action metadata');
+export function createAgentExecutor(
+  runPrompt: (userMessage: string) => Promise<string>,
+  options?: { allowDirectTools?: boolean },
+): AgentExecutor {
+  const allowDirectTools = options?.allowDirectTools ?? false;
+
+  return {
+    async execute(context: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
+      try {
+        const demo = parseA2aDemoMetadata(context.userMessage);
+        let responseText: string;
+
+        if (demo.mode === 'direct') {
+          if (!allowDirectTools) {
+            throw new Error('Direct tool mode is not supported for this agent');
+          }
+          if (!demo.action) {
+            throw new Error('Direct tool mode requires demo.action metadata');
+          }
+          responseText = await runDirectTool(demo.action, demo.projectId);
+        } else {
+          const userText = extractTextFromMessage(context.userMessage) ?? '';
+          responseText = await runPrompt(userText);
         }
-        responseText = await runDirectTool(demo.action, demo.projectId);
-      } else {
-        const userText = extractTextFromMessage(context.userMessage) ?? '';
-        responseText = await runAgentPrompt(userText);
+
+        eventBus.publish({
+          kind: 'message' as const,
+          messageId: crypto.randomUUID(),
+          role: 'agent' as const,
+          parts: [{ kind: 'text' as const, text: responseText }],
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Agent execution failed';
+        eventBus.publish({
+          kind: 'message' as const,
+          messageId: crypto.randomUUID(),
+          role: 'agent' as const,
+          parts: [{ kind: 'text' as const, text: `Error: ${message}` }],
+        });
+      } finally {
+        eventBus.finished();
       }
+    },
 
-      eventBus.publish({
-        kind: 'message' as const,
-        messageId: crypto.randomUUID(),
-        role: 'agent' as const,
-        parts: [{ kind: 'text' as const, text: responseText }],
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Agent execution failed';
-      eventBus.publish({
-        kind: 'message' as const,
-        messageId: crypto.randomUUID(),
-        role: 'agent' as const,
-        parts: [{ kind: 'text' as const, text: `Error: ${message}` }],
-      });
-    } finally {
+    cancelTask(_taskId: string, eventBus: ExecutionEventBus): Promise<void> {
       eventBus.finished();
-    }
-  }
-
-  cancelTask(_taskId: string, eventBus: ExecutionEventBus): Promise<void> {
-    eventBus.finished();
-    return Promise.resolve();
-  }
+      return Promise.resolve();
+    },
+  };
 }
 
-export function buildAgentCard(baseUrl: string): AgentCard {
+export function buildBigQueryAgentCard(baseUrl: string): AgentCard {
   return {
     protocolVersion: '0.3.0',
     name: 'BigQuery Assistant',
@@ -59,19 +78,37 @@ export function buildAgentCard(baseUrl: string): AgentCard {
     },
     defaultInputModes: ['text'],
     defaultOutputModes: ['text'],
-    securitySchemes: {
-      google: {
-        type: 'openIdConnect',
-        openIdConnectUrl: 'https://accounts.google.com/.well-known/openid-configuration',
-      },
-    },
-    security: [{ google: [] }],
+    ...GOOGLE_SECURITY,
     skills: [
       {
         id: 'list-datasets',
         name: 'List datasets',
         description: 'List BigQuery datasets in a GCP project',
         tags: ['bigquery'],
+      },
+    ],
+  };
+}
+
+export function buildGeneralAgentCard(baseUrl: string): AgentCard {
+  return {
+    protocolVersion: '0.3.0',
+    name: 'General Assistant',
+    description: 'General-purpose chat without BigQuery or MCP tools.',
+    url: baseUrl,
+    version: '0.1.0',
+    capabilities: {
+      streaming: false,
+    },
+    defaultInputModes: ['text'],
+    defaultOutputModes: ['text'],
+    ...GOOGLE_SECURITY,
+    skills: [
+      {
+        id: 'general-chat',
+        name: 'General chat',
+        description: 'Answer questions in plain text without tool access',
+        tags: ['chat'],
       },
     ],
   };

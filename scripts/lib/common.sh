@@ -288,6 +288,30 @@ warn_if_cloud_run_images_stale() {
 	log "  Redeploy: ./scripts/deploy-mcp.sh && ./scripts/deploy-agent.sh"
 }
 
+# RFC 9727 API catalog must exist on remote-agent for web-chat agent discovery.
+verify_remote_agent_api_catalog() {
+	local agent_url=$1
+	local catalog_url="${agent_url%/}/.well-known/api-catalog"
+	local id_token http_status
+
+	if ! command -v curl >/dev/null 2>&1; then
+		log "WARNING: curl not found; skipping API catalog check for ${catalog_url}"
+		return 0
+	fi
+
+	id_token="$(gcloud auth print-identity-token --audiences="${agent_url}" 2>/dev/null || gcloud auth print-identity-token)"
+	http_status="$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${id_token}" "${catalog_url}")"
+
+	if [[ ${http_status} == "200" ]]; then
+		return 0
+	fi
+
+	log "WARNING: GET ${catalog_url} returned HTTP ${http_status} (expected 200)"
+	log "  Web-chat agent discovery needs RFC 9727 api-catalog on remote-agent."
+	log "  Redeploy: ./scripts/deploy-agent.sh"
+	return 1
+}
+
 # Comma-separated emails for run.invoker grants. ALLOWED_EMAILS env overrides terraform output.
 resolve_allowed_emails() {
 	if [[ -n ${ALLOWED_EMAILS-} ]]; then

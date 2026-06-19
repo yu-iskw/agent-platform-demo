@@ -2,12 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 import { fetchCloudRunIdToken, SESSION_AUTHORIZATION_HEADER } from '@agent-platform/mcp-auth';
 
-type AgentAuthContext = {
-  googleAccessToken: string;
-  agentUrl: string;
-};
-
-const agentAuthStorage = new AsyncLocalStorage<AgentAuthContext>();
+const agentFetchStorage = new AsyncLocalStorage<typeof fetch>();
 const nativeFetch = globalThis.fetch.bind(globalThis);
 
 let authorizedFetchInstalled = false;
@@ -42,30 +37,35 @@ export function shouldApplyCloudRunAgentAuth(requestUrl: string, agentUrl: strin
   }
 }
 
+function createAuthorizedFetch(googleAccessToken: string, agentUrl: string): typeof fetch {
+  return async (input, init) => {
+    const headers = new Headers(init?.headers);
+    const requestUrl = resolveRequestUrl(input);
+
+    if (shouldApplyCloudRunAgentAuth(requestUrl, agentUrl)) {
+      const audience = new URL(agentUrl).origin;
+      const idToken = await fetchCloudRunIdToken(audience);
+      headers.set('Authorization', `Bearer ${idToken}`);
+      headers.set(SESSION_AUTHORIZATION_HEADER, `Bearer ${googleAccessToken}`);
+    } else if (!headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${googleAccessToken}`);
+    }
+
+    return nativeFetch(input, { ...init, headers });
+  };
+}
+
 function installAuthorizedFetch(): void {
   if (authorizedFetchInstalled) {
     return;
   }
 
-  globalThis.fetch = async (input, init) => {
-    const context = agentAuthStorage.getStore();
-    if (!context) {
-      return nativeFetch(input, init);
+  globalThis.fetch = (input, init) => {
+    const authorizedFetch = agentFetchStorage.getStore();
+    if (authorizedFetch) {
+      return authorizedFetch(input, init);
     }
-
-    const headers = new Headers(init?.headers);
-    const requestUrl = resolveRequestUrl(input);
-
-    if (shouldApplyCloudRunAgentAuth(requestUrl, context.agentUrl)) {
-      const audience = new URL(context.agentUrl).origin;
-      const idToken = await fetchCloudRunIdToken(audience);
-      headers.set('Authorization', `Bearer ${idToken}`);
-      headers.set(SESSION_AUTHORIZATION_HEADER, `Bearer ${context.googleAccessToken}`);
-    } else if (!headers.has('Authorization')) {
-      headers.set('Authorization', `Bearer ${context.googleAccessToken}`);
-    }
-
-    return nativeFetch(input, { ...init, headers });
+    return nativeFetch(input, init);
   };
   authorizedFetchInstalled = true;
 }
@@ -76,5 +76,6 @@ export function runWithUserAuthorization<T>(
   operation: () => Promise<T>,
 ): Promise<T> {
   installAuthorizedFetch();
-  return agentAuthStorage.run({ googleAccessToken, agentUrl }, operation);
+  const authorizedFetch = createAuthorizedFetch(googleAccessToken, agentUrl);
+  return agentFetchStorage.run(authorizedFetch, operation);
 }

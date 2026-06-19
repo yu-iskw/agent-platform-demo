@@ -1,6 +1,7 @@
 import { A2AClient } from '@a2a-js/sdk/client';
 import { buildA2aDemoMetadata, type DemoAction, type DemoMode } from '@agent-platform/mcp-auth';
 
+import { resolveAgentCardUrl } from './fetch-agent-card.js';
 import { parseSendMessageResponse } from './parse-response.js';
 import { runWithUserAuthorization } from './session-fetch.js';
 
@@ -21,7 +22,7 @@ export async function sendAgentMessage(options: SendAgentMessageOptions): Promis
   const demoMode = options.demoMode ?? 'agent';
 
   return runWithUserAuthorization(options.caller.googleAccessToken, options.agentUrl, async () => {
-    const client = new A2AClient(options.agentUrl);
+    const client = await A2AClient.fromCardUrl(resolveAgentCardUrl(options.agentUrl));
     const response = await client.sendMessage({
       message: {
         kind: 'message',

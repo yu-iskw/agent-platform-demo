@@ -2,6 +2,7 @@ import { buildMcpCallerHeaders } from '@agent-platform/mcp-auth';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
+import { fetchAgentCard, fetchAgentCardForHost, normalizeBaseUrl } from './fetch-agent-card.js';
 import { readJsonResponse } from './read-json-response.js';
 
 import type { AgentCard } from '@a2a-js/sdk';
@@ -35,6 +36,8 @@ export type PlatformInfo = {
 export type CollectPlatformInfoOptions = {
   agentUrl: string;
   googleAccessToken: string;
+  /** When set, fetches this agent's card instead of the legacy well-known card. */
+  agentId?: string;
   agentMcpUrl?: string;
   bqMcpUrl?: string;
   /** When false, skips live bq-mcp MCP discovery (web-chat uses A2A → remote-agent → bq-mcp only). */
@@ -47,10 +50,6 @@ type PrmResponse = {
   scopes_supported?: string[];
 };
 
-function normalizeBaseUrl(url: string): string {
-  return url.replace(/\/$/, '');
-}
-
 function mcpOrigin(mcpUrl: string): string {
   return new URL(mcpUrl).origin;
 }
@@ -61,14 +60,6 @@ function defaultAgentMcpUrl(agentUrl: string): string {
 
 function defaultBqMcpUrl(): string {
   return 'http://127.0.0.1:8080/mcp';
-}
-
-async function fetchAgentCard(agentUrl: string): Promise<AgentCard> {
-  const response = await fetch(`${normalizeBaseUrl(agentUrl)}/.well-known/agent-card.json`);
-  if (!response.ok) {
-    throw new Error(`Agent card fetch failed (HTTP ${response.status})`);
-  }
-  return readJsonResponse<AgentCard>(response, 'Agent card');
 }
 
 async function fetchPrmMetadata(
@@ -141,7 +132,9 @@ export async function collectPlatformInfo(
   const includeBqMcp = options.includeBqMcp ?? true;
 
   const [a2a, agentMcp, bqMcp] = await Promise.all([
-    fetchAgentCard(options.agentUrl),
+    options.agentId
+      ? fetchAgentCardForHost(options.agentUrl, options.agentId)
+      : fetchAgentCard(options.agentUrl),
     collectMcpServerMetadata(agentMcpUrl, options.googleAccessToken),
     includeBqMcp
       ? collectMcpServerMetadata(options.bqMcpUrl ?? defaultBqMcpUrl(), options.googleAccessToken)

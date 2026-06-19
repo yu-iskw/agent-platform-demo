@@ -1,12 +1,15 @@
 import { sendAgentMessage } from '@agent-platform/agent-client';
 
-import type { AppSession } from './session-store.js';
+import { resolveAgentServiceUrl } from './agent-url';
+
+import type { AppSession } from './session-store';
 
 export async function sendMessageViaRemoteAgent(
   session: AppSession,
   message: string,
+  agentId = 'bigquery',
 ): Promise<string> {
-  const agentUrl = process.env.AGENT_URL ?? 'http://127.0.0.1:8081';
+  const agentUrl = resolveAgentServiceUrl(agentId);
 
   return sendAgentMessage({
     agentUrl,

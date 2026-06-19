@@ -11,6 +11,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./pick-enabled-agent-id": {
+      "types": "./dist/pick-enabled-agent-id.d.ts",
+      "import": "./dist/pick-enabled-agent-id.js"
     }
   },
   "scripts": {

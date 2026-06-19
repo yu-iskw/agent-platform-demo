@@ -2,14 +2,10 @@
 
 import { useEffect, useState } from 'react';
 
-import {
-  a2aSummaryLines,
-  bqMcpChainMetadata,
-  bqMcpChainSummaryLines,
-  mcpSummaryLines,
-  type McpToolMetadata,
-  type PlatformInfo,
-} from '@/lib/platform-info';
+import { AgentAvailabilityPanel } from '@/components/agent-availability-panel';
+import { AgentCardPicker } from '@/components/agent-card-picker';
+import { RemoteAgentPlatformInfo } from '@/components/remote-agent-platform-info';
+import { chatPlaceholder, useRemoteAgentData } from '@/components/use-remote-agent-data';
 import { readJsonResponse } from '@/lib/read-json-response';
 
 import type { FormEvent } from 'react';
@@ -21,199 +17,92 @@ type Props = {
 type ChatResponse = {
   reply?: string;
   useRemoteAgent?: boolean;
+  agentId?: string;
+  routed?: boolean;
+  selectedAgentId?: string;
   error?: string;
 };
 
-const detailsStyle = {
-  border: '1px solid #ddd',
-  borderRadius: 4,
-  marginTop: '0.75rem',
-  padding: '0.5rem 0.75rem',
-} as const;
-
-const listStyle = { margin: '0.5rem 0 0', paddingLeft: '1.25rem' } as const;
-
 const borderLight = '1px solid #ccc';
-const cellPadding = '0.25rem';
-const resourcePrefix = 'Resource: ';
-const endpointPrefix = 'Endpoint: ';
+const chatModeApiLabel = 'Chat mode API';
+const chatModeUpdateError = 'Failed to update chat mode';
 
-function InfoPanel({ title, lines }: { title: string; lines: string[] }): React.JSX.Element {
-  return (
-    <details open style={detailsStyle}>
-      <summary style={{ cursor: 'pointer', fontWeight: 600 }}>{title}</summary>
-      <ul style={listStyle}>
-        {lines.map((line) => (
-          <li key={line} style={{ marginBottom: '0.25rem', whiteSpace: 'pre-wrap' }}>
-            {line.startsWith(endpointPrefix) || line.startsWith(resourcePrefix) ? (
-              <>
-                {line.split(': ')[0]}: <code>{line.slice(line.indexOf(': ') + 2)}</code>
-              </>
-            ) : (
-              line
-            )}
-          </li>
-        ))}
-      </ul>
-    </details>
-  );
-}
-
-function ToolsTable({ tools }: { tools: McpToolMetadata[] }): React.JSX.Element | null {
-  if (tools.length === 0) {
-    return null;
+function isRemoteSendBlocked(
+  useRemoteAgent: boolean,
+  remote: ReturnType<typeof useRemoteAgentData>,
+): boolean {
+  if (!useRemoteAgent) {
+    return false;
   }
-
-  return (
-    <table
-      style={{
-        width: '100%',
-        marginTop: '0.5rem',
-        borderCollapse: 'collapse',
-        fontSize: '0.9rem',
-      }}
-    >
-      <thead>
-        <tr>
-          <th style={{ textAlign: 'left', borderBottom: borderLight, padding: cellPadding }}>
-            Tool
-          </th>
-          <th style={{ textAlign: 'left', borderBottom: borderLight, padding: cellPadding }}>
-            Description
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {tools.map((tool) => (
-          <tr key={tool.name}>
-            <td style={{ padding: cellPadding, verticalAlign: 'top' }}>
-              <code>{tool.name}</code>
-              {tool.title && tool.title !== tool.name ? (
-                <div style={{ fontSize: '0.85rem', color: '#555' }}>{tool.title}</div>
-              ) : null}
-            </td>
-            <td style={{ padding: cellPadding, verticalAlign: 'top' }}>
-              {tool.description ?? '—'}
-              {tool.inputSchema ? (
-                <pre
-                  style={{
-                    marginTop: '0.25rem',
-                    fontSize: '0.75rem',
-                    background: '#f8f8f8',
-                    padding: '0.25rem',
-                    overflowX: 'auto',
-                  }}
-                >
-                  {JSON.stringify(tool.inputSchema, null, 2)}
-                </pre>
-              ) : null}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
+  if (remote.policyLoading || remote.agentsLoading) {
+    return true;
+  }
+  return remote.policyAgents.length > 0 && !remote.policyAgents.some((agent) => agent.enabled);
 }
 
-function McpDetailsPanel({
-  title,
-  label,
-  server,
-  summaryLines,
-}: {
-  title: string;
-  label: string;
-  server: PlatformInfo['agentMcp'];
-  summaryLines?: string[];
-}): React.JSX.Element {
-  const lines = summaryLines ?? mcpSummaryLines(label, server);
-  return (
-    <details open style={detailsStyle}>
-      <summary style={{ cursor: 'pointer', fontWeight: 600 }}>{title}</summary>
-      <ul style={listStyle}>
-        {lines.map((line, index) => (
-          <li key={`${label}-${index}`} style={{ marginBottom: '0.25rem' }}>
-            {line.startsWith(resourcePrefix) ? (
-              <>
-                Resource: <code>{line.slice(resourcePrefix.length)}</code>
-              </>
-            ) : (
-              line
-            )}
-          </li>
-        ))}
-      </ul>
-      <ToolsTable tools={server.tools} />
-    </details>
-  );
+async function persistChatMode(mode: 'local' | 'remote'): Promise<void> {
+  const response = await fetch('/api/chat-mode', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode }),
+  });
+  if (!response.ok) {
+    const data = await readJsonResponse<{ error?: string }>(response, chatModeApiLabel);
+    throw new Error(data.error ?? chatModeUpdateError);
+  }
 }
 
 export default function ChatClient({ email }: Props): React.JSX.Element {
   const [useRemoteAgent, setUseRemoteAgent] = useState(false);
-  const [platformInfo, setPlatformInfo] = useState<PlatformInfo | null>(null);
-  const [platformInfoLoading, setPlatformInfoLoading] = useState(false);
-  const [platformInfoError, setPlatformInfoError] = useState<string | null>(null);
+  const remote = useRemoteAgentData(useRemoteAgent);
   const [message, setMessage] = useState('');
   const [reply, setReply] = useState<string | null>(null);
+  const [replyAgentName, setReplyAgentName] = useState<string | null>(null);
   const [replyViaRemote, setReplyViaRemote] = useState<boolean | null>(null);
+  const [replyRouted, setReplyRouted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [modeError, setModeError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!useRemoteAgent) {
-      setPlatformInfo(null);
-      setPlatformInfoError(null);
-      setPlatformInfoLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    setPlatformInfoLoading(true);
-    setPlatformInfoError(null);
-    setPlatformInfo(null);
-
-    void (async (): Promise<void> => {
+    void (async () => {
       try {
-        const response = await fetch('/api/platform-info', { signal: controller.signal });
-        const data = await readJsonResponse<PlatformInfo & { error?: string }>(
-          response,
-          'Platform info API',
-        );
+        const response = await fetch('/api/chat-mode');
         if (!response.ok) {
-          throw new Error(data.error ?? 'Failed to load platform info');
-        }
-        setPlatformInfo(data);
-      } catch (fetchError) {
-        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
           return;
         }
-        setPlatformInfoError(
-          fetchError instanceof Error ? fetchError.message : 'Failed to load platform info',
+        const data = await readJsonResponse<{ mode?: 'local' | 'remote' }>(
+          response,
+          chatModeApiLabel,
         );
-      } finally {
-        if (!controller.signal.aborted) {
-          setPlatformInfoLoading(false);
-        }
+        setUseRemoteAgent(data.mode === 'remote');
+      } catch {
+        // Keep default local mode when session cookie is unavailable.
       }
     })();
+  }, []);
 
-    return () => {
-      controller.abort();
-    };
-  }, [useRemoteAgent]);
+  const selectedAgent =
+    remote.agents.find((agent) => agent.id === remote.selectedAgentId) ??
+    remote.policyAgents.find((agent) => agent.id === remote.selectedAgentId);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setLoading(true);
     setError(null);
     setReply(null);
+    setReplyAgentName(null);
     setReplyViaRemote(null);
+    setReplyRouted(false);
 
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ useRemoteAgent, message }),
+        body: JSON.stringify({
+          message,
+          agentId: remote.selectedAgentId,
+        }),
       });
       const data = await readJsonResponse<ChatResponse>(response, 'Chat API');
       if (!response.ok) {
@@ -222,6 +111,13 @@ export default function ChatClient({ email }: Props): React.JSX.Element {
 
       setReply(data.reply ?? '');
       setReplyViaRemote(data.useRemoteAgent ?? useRemoteAgent);
+      setReplyRouted(Boolean(data.routed));
+      if (data.useRemoteAgent ?? useRemoteAgent) {
+        const replyAgent =
+          remote.agents.find((agent) => agent.id === data.agentId) ??
+          remote.policyAgents.find((agent) => agent.id === data.agentId);
+        setReplyAgentName(replyAgent?.name ?? data.agentId ?? remote.selectedAgentId);
+      }
       setMessage('');
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Unknown error');
@@ -230,8 +126,17 @@ export default function ChatClient({ email }: Props): React.JSX.Element {
     }
   }
 
+  const remoteBusy = useRemoteAgent && (remote.policyLoading || remote.agentsLoading);
+  const sendDisabled =
+    loading ||
+    message.trim().length === 0 ||
+    remoteBusy ||
+    isRemoteSendBlocked(useRemoteAgent, remote);
+
   const replyModeLabel =
-    replyViaRemote === false ? 'Reply (local web-chat agent)' : 'Reply (remote-agent via A2A)';
+    replyViaRemote === false
+      ? 'Reply (local web-chat agent)'
+      : `Reply (remote-agent / ${replyAgentName ?? 'A2A agent'} via A2A)`;
 
   return (
     <section>
@@ -254,7 +159,13 @@ export default function ChatClient({ email }: Props): React.JSX.Element {
             name="remote-agent"
             checked={useRemoteAgent}
             onChange={() => {
+              setModeError(null);
               setUseRemoteAgent(true);
+              void persistChatMode('remote').catch((modeUpdateError) => {
+                setModeError(
+                  modeUpdateError instanceof Error ? modeUpdateError.message : chatModeUpdateError,
+                );
+              });
             }}
           />{' '}
           Use remote-agent via A2A
@@ -265,37 +176,52 @@ export default function ChatClient({ email }: Props): React.JSX.Element {
             name="remote-agent"
             checked={!useRemoteAgent}
             onChange={() => {
+              setModeError(null);
               setUseRemoteAgent(false);
+              void persistChatMode('local').catch((modeUpdateError) => {
+                setModeError(
+                  modeUpdateError instanceof Error ? modeUpdateError.message : chatModeUpdateError,
+                );
+              });
             }}
           />{' '}
           Local web-chat agent only
         </label>
       </fieldset>
 
+      {modeError ? <p style={{ color: 'crimson', marginTop: '0.75rem' }}>{modeError}</p> : null}
+
       {useRemoteAgent ? (
         <>
-          {platformInfoLoading ? (
-            <p style={{ marginTop: '0.75rem' }}>Loading platform info…</p>
+          <AgentAvailabilityPanel
+            agents={remote.policyAgents}
+            loading={remote.policyLoading}
+            error={remote.policyError}
+            togglingId={remote.togglingId}
+            onToggle={(agentId, enabled) => {
+              void remote.toggleAgent(agentId, enabled);
+            }}
+          />
+          {remote.agentsLoading ? <p style={{ marginTop: '0.75rem' }}>Loading agents…</p> : null}
+          {remote.agentsError && !remote.policyError ? (
+            <p style={{ color: 'crimson', marginTop: '0.75rem' }}>{remote.agentsError}</p>
           ) : null}
-          {platformInfoError ? (
-            <p style={{ color: 'crimson', marginTop: '0.75rem' }}>{platformInfoError}</p>
-          ) : null}
-          {platformInfo ? (
-            <>
-              <InfoPanel title="Remote-agent via A2A" lines={a2aSummaryLines(platformInfo)} />
-              <McpDetailsPanel
-                title="MCP on remote-agent"
-                label="Agent MCP"
-                server={platformInfo.agentMcp}
-              />
-              <McpDetailsPanel
-                title="bq-mcp (via remote-agent chain)"
-                label="bq-mcp"
-                server={bqMcpChainMetadata}
-                summaryLines={bqMcpChainSummaryLines()}
-              />
-            </>
-          ) : null}
+          <AgentCardPicker
+            agents={remote.selectableAgents}
+            selectedAgentId={remote.selectedAgentId}
+            onSelectAgent={remote.setSelectedAgentId}
+          />
+          <p style={{ color: '#555', fontSize: '0.9rem', marginTop: '0.5rem' }}>
+            Default agent for general chat. BigQuery dataset questions automatically use the
+            BigQuery Assistant when it is enabled.
+          </p>
+          <RemoteAgentPlatformInfo
+            selectedAgentId={remote.selectedAgentId}
+            agentName={selectedAgent?.name ?? remote.selectedAgentId}
+            platformInfo={remote.platformInfo}
+            loading={remote.platformInfoLoading}
+            error={remote.platformInfoError}
+          />
         </>
       ) : null}
 
@@ -310,15 +236,11 @@ export default function ChatClient({ email }: Props): React.JSX.Element {
           onChange={(event) => {
             setMessage(event.target.value);
           }}
-          placeholder={
-            useRemoteAgent
-              ? 'List datasets in ubie-yu-sandbox'
-              : 'Ask the local web-chat agent (no remote-agent A2A)'
-          }
+          placeholder={chatPlaceholder(remote.selectedAgentId, useRemoteAgent)}
           rows={4}
           style={{ width: '100%', padding: '0.5rem' }}
         />
-        <button type="submit" disabled={loading || message.trim().length === 0}>
+        <button type="submit" disabled={sendDisabled}>
           {loading ? 'Sending…' : 'Send'}
         </button>
       </form>
@@ -328,6 +250,14 @@ export default function ChatClient({ email }: Props): React.JSX.Element {
         <div style={{ marginTop: '1rem' }}>
           <p>
             <strong>{replyModeLabel}</strong>
+            {replyRouted ? (
+              <span
+                style={{ display: 'block', color: '#555', fontWeight: 400, marginTop: '0.25rem' }}
+              >
+                Routed to {replyAgentName} based on your message (card selection was a different
+                agent).
+              </span>
+            ) : null}
           </p>
           <pre
             style={{
