@@ -19,6 +19,8 @@ REMOTE_AGENT_SA_EMAIL="$(terraform -chdir="${TERRAFORM_DIR}" output -raw remote_
 export REMOTE_AGENT_SA_EMAIL
 BQ_MCP_SA_EMAIL="$(terraform -chdir="${TERRAFORM_DIR}" output -raw bq_mcp_sa_email)"
 export BQ_MCP_SA_EMAIL
+BQ_METADATA_READER_SA_EMAIL="$(terraform -chdir="${TERRAFORM_DIR}" output -raw bq_metadata_reader_sa_email)"
+export BQ_METADATA_READER_SA_EMAIL
 ARTIFACT_REGISTRY_URL="$(terraform -chdir="${TERRAFORM_DIR}" output -raw artifact_registry_url)"
 export ARTIFACT_REGISTRY_URL
 

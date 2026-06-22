@@ -114,7 +114,7 @@ export function ControlPlane({
             <DirectProofControls
               demoMode={demoMode}
               loading={loading}
-              controlsDisabled={loading || probing}
+              controlsDisabled={loading || probing || authPreset !== 'full'}
               onDemoModeChange={onDemoModeChange}
               onProofAction={onProofAction}
             />

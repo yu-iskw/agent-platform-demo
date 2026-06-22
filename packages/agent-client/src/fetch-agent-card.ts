@@ -18,6 +18,18 @@ function assertAllowedOrigin(url: URL): void {
   }
 }
 
+/** Validates agent host URL origin (localhost or *.run.app). */
+export function assertAllowedAgentHostUrl(agentUrl: string): void {
+  try {
+    assertAllowedOrigin(new URL(normalizeBaseUrl(agentUrl)));
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Agent host URL is not allowed') {
+      throw error;
+    }
+    throw new Error('Invalid agent host URL');
+  }
+}
+
 export function validateAgentId(agentId: string): string {
   const trimmed = agentId.trim();
   if (!AGENT_ID_PATTERN.test(trimmed)) {
@@ -51,6 +63,7 @@ export function resolveAgentCardPath(agentUrl: string): string {
 }
 
 export function resolveAgentCardUrl(agentUrl: string): string {
+  assertAllowedAgentHostUrl(agentUrl);
   const cardPath = resolveAgentCardPath(agentUrl);
   return `${normalizeBaseUrl(agentUrl)}/${cardPath}`;
 }

@@ -2,6 +2,8 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 import { fetchCloudRunIdToken, SESSION_AUTHORIZATION_HEADER } from '@agent-platform/mcp-auth';
 
+import { assertAllowedAgentHostUrl } from './fetch-agent-card.js';
+
 const agentFetchStorage = new AsyncLocalStorage<typeof fetch>();
 const nativeFetch = globalThis.fetch.bind(globalThis);
 
@@ -37,7 +39,19 @@ export function shouldApplyCloudRunAgentAuth(requestUrl: string, agentUrl: strin
   }
 }
 
+/** Only attach user OAuth token to requests targeting the configured agent origin. */
+function shouldAttachUserToken(requestUrl: string, agentUrl: string): boolean {
+  try {
+    assertAllowedAgentHostUrl(agentUrl);
+    return new URL(requestUrl).origin === new URL(agentUrl).origin;
+  } catch {
+    return false;
+  }
+}
+
 function createAuthorizedFetch(googleAccessToken: string, agentUrl: string): typeof fetch {
+  assertAllowedAgentHostUrl(agentUrl);
+
   return async (input, init) => {
     const headers = new Headers(init?.headers);
     const requestUrl = resolveRequestUrl(input);
@@ -47,7 +61,7 @@ function createAuthorizedFetch(googleAccessToken: string, agentUrl: string): typ
       const idToken = await fetchCloudRunIdToken(audience);
       headers.set('Authorization', `Bearer ${idToken}`);
       headers.set(SESSION_AUTHORIZATION_HEADER, `Bearer ${googleAccessToken}`);
-    } else if (!headers.has('Authorization')) {
+    } else if (!headers.has('Authorization') && shouldAttachUserToken(requestUrl, agentUrl)) {
       headers.set('Authorization', `Bearer ${googleAccessToken}`);
     }
 
@@ -75,6 +89,7 @@ export function runWithUserAuthorization<T>(
   agentUrl: string,
   operation: () => Promise<T>,
 ): Promise<T> {
+  assertAllowedAgentHostUrl(agentUrl);
   installAuthorizedFetch();
   const authorizedFetch = createAuthorizedFetch(googleAccessToken, agentUrl);
   return agentFetchStorage.run(authorizedFetch, operation);

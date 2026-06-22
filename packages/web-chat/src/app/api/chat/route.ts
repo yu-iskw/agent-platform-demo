@@ -1,13 +1,12 @@
 import {
   fetchAgentPolicy,
-  parseDemoAction,
   resolveChatAgentId,
   runWithUserAuthorization,
 } from '@agent-platform/agent-client';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-import { sendMessageViaRemoteAgent, sendProofWithAuthProfile } from '@/lib/a2a-client';
+import { sendMessageViaRemoteAgent } from '@/lib/a2a-client';
 import { resolveAgentHostUrl } from '@/lib/agent-url';
 import {
   AuthProfileError,
@@ -23,7 +22,6 @@ import { getSession, SESSION_COOKIE } from '@/lib/session-store';
 type ChatRequestBody = {
   message?: string;
   agentId?: string;
-  demoAction?: string;
   authPreset?: unknown;
 };
 
@@ -49,7 +47,6 @@ export async function POST(request: Request): Promise<NextResponse> {
   const authPreset = parseAuthProbePreset(body.authPreset) ?? 'full';
   const message = body.message?.trim();
   const selectedAgentId = body.agentId?.trim() || 'bigquery';
-  const demoAction = parseDemoAction(body.demoAction);
 
   if (!message) {
     return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -57,7 +54,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const freeformError = rejectNonFullFreeformChat({
     useRemoteAgent,
-    demoAction,
+    demoAction: undefined,
     authPreset,
   });
   if (freeformError) {
@@ -71,43 +68,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const hostUrl = resolveAgentHostUrl();
-
-    if (demoAction && authPreset !== 'full') {
-      const resolvedDemo = resolveRemoteDemoRequest({
-        cookieMode: demoMode,
-        useRemoteAgent: true,
-        routedAgentId: selectedAgentId,
-        demoAction,
-        projectIdEnv: process.env.GOOGLE_CLOUD_PROJECT?.trim() || undefined,
-      });
-
-      if (resolvedDemo.error) {
-        return NextResponse.json({ error: resolvedDemo.error, authPreset }, { status: 400 });
-      }
-
-      const reply = await sendProofWithAuthProfile({
-        authPreset,
-        session,
-        message,
-        agentId: selectedAgentId,
-        demoMode: resolvedDemo.mode,
-        demoAction: resolvedDemo.demoAction,
-        demoProjectId: resolvedDemo.demoProjectId,
-      });
-
-      return jsonWithAuthPreset(
-        {
-          reply,
-          useRemoteAgent: true,
-          chatMode,
-          demoMode: resolvedDemo.mode,
-          agentId: selectedAgentId,
-          routed: false,
-          selectedAgentId,
-        },
-        authPreset,
-      );
-    }
+    const projectIdEnv = process.env.GOOGLE_CLOUD_PROJECT?.trim() || undefined;
 
     const { agentId, routed } = await runWithUserAuthorization(
       session.googleAccessToken,
@@ -122,8 +83,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       cookieMode: demoMode,
       useRemoteAgent: true,
       routedAgentId: agentId,
-      demoAction,
-      projectIdEnv: process.env.GOOGLE_CLOUD_PROJECT?.trim() || undefined,
+      demoAction: undefined,
+      projectIdEnv,
     });
 
     if (resolvedDemo.error) {
@@ -135,7 +96,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       message,
       agentId,
       demoMode: resolvedDemo.mode,
-      demoAction: resolvedDemo.demoAction,
       demoProjectId: resolvedDemo.demoProjectId,
     });
 

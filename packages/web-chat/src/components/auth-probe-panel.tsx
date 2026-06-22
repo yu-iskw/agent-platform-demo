@@ -9,7 +9,7 @@ function presetHint(preset: AuthProbePreset): string {
     case 'full':
       return 'Full auth: proof buttons and Send use IAM + user OAuth.';
     case 'no_session':
-      return 'Proof simulates no session (401). Send disabled. Use Run probe or proof buttons.';
+      return 'No session: Run probe only. Proof buttons and Send are disabled.';
     case 'iam_only':
       return 'Proof sends IAM only (no user OAuth). Send disabled.';
     case 'no_iam':
