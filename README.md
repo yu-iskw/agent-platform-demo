@@ -71,7 +71,7 @@ In another terminal:
 
 ```bash
 export AGENT_URL=http://127.0.0.1:8081
-./scripts/agent-cli.sh "List datasets in project ubie-yu-sandbox"
+./scripts/agent-cli.sh "List datasets in project ${PROJECT_ID}"
 ./scripts/agent-cli.sh "What Google account am I using and what credentials access BigQuery?"
 ```
 
@@ -81,6 +81,7 @@ Local stack uses `AUTH_MODE=google` on MCP and Google OAuth bearer tokens on the
 
 ```bash
 export BQ_METADATA_READER_SA_EMAIL="$(terraform -chdir=terraform output -raw bq_metadata_reader_sa_email)"
+export GOOGLE_CLOUD_PROJECT="$(terraform -chdir=terraform output -raw project_id)"
 docker compose up
 ```
 
@@ -139,6 +140,8 @@ sequenceDiagram
   MCP->>BQ: impersonate bq-metadata-reader
 ```
 
+**Auth proof playbook:** Step-by-step positive and negative checks (web UI modes, curl, automated smoke) — see [`docs/auth-proof.md`](docs/auth-proof.md).
+
 **OAuth hardening:** Set the Web OAuth client to **Internal** (Google Workspace) or restrict **Test users** in GCP Console so only your org can complete browser login.
 
 | Environment | Who impersonates bq-metadata-reader                     |
@@ -177,10 +180,10 @@ Web-chat and `agent-cli` talk to **remote-agent** over A2A. The agent forwards t
 ```bash
 # Local CLI
 export AGENT_URL=http://127.0.0.1:8081
-./scripts/agent-cli.sh "List datasets in project ubie-yu-sandbox"
+./scripts/agent-cli.sh "List datasets in project ${PROJECT_ID}"
 
 # Cloud Run CLI (auto-resolves AGENT_URL via gcloud — do not copy placeholder URLs from docs)
-./scripts/agent-cli.sh "List datasets in project ubie-yu-sandbox"
+./scripts/agent-cli.sh "List datasets in project ${PROJECT_ID}"
 ./scripts/agent-cli.sh "What Google account am I using and what credentials access BigQuery?"
 # or: ./scripts/run-cloud-check.sh
 

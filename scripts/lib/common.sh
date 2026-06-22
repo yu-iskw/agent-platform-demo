@@ -4,7 +4,39 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export TERRAFORM_DIR="${ROOT_DIR}/terraform"
 
-export PROJECT_ID="${PROJECT_ID:-$(terraform -chdir="${TERRAFORM_DIR}" output -raw project_id 2>/dev/null | grep -v '^╷' | grep -v '^│' | grep -v '^╵' | tail -1 || echo ubie-yu-sandbox)}"
+terraform_output_raw() {
+	local name=$1
+	terraform -chdir="${TERRAFORM_DIR}" output -raw "${name}" 2>/dev/null | grep -v '^╷' | grep -v '^│' | grep -v '^╵' | tail -1 || true
+}
+
+resolve_project_id() {
+	if [[ -n ${PROJECT_ID-} ]]; then
+		printf '%s' "${PROJECT_ID}"
+		return 0
+	fi
+
+	local from_tf
+	from_tf="$(terraform_output_raw project_id)"
+	if [[ -n ${from_tf} ]]; then
+		printf '%s' "${from_tf}"
+		return 0
+	fi
+
+	if command -v gcloud >/dev/null 2>&1; then
+		local from_gcloud
+		from_gcloud="$(gcloud config get-value project 2>/dev/null || true)"
+		if [[ -n ${from_gcloud} && ${from_gcloud} != '(unset)' ]]; then
+			printf '%s' "${from_gcloud}"
+			return 0
+		fi
+	fi
+
+	echo 'Could not resolve GCP project. Set PROJECT_ID, run terraform apply, or: gcloud config set project YOUR_PROJECT' >&2
+	return 1
+}
+
+PROJECT_ID="$(resolve_project_id)"
+export PROJECT_ID
 export REGION="${REGION:-$(terraform -chdir="${TERRAFORM_DIR}" output -raw region 2>/dev/null | grep -v '^╷' | grep -v '^│' | grep -v '^╵' | tail -1 || echo asia-northeast1)}"
 export ARTIFACT_REGISTRY_URL="${ARTIFACT_REGISTRY_URL:-$(terraform -chdir="${TERRAFORM_DIR}" output -raw artifact_registry_url 2>/dev/null || echo "${REGION}-docker.pkg.dev/${PROJECT_ID}/agent-platform-demo")}"
 export REMOTE_AGENT_SA_EMAIL="${REMOTE_AGENT_SA_EMAIL:-$(terraform -chdir="${TERRAFORM_DIR}" output -raw remote_agent_sa_email 2>/dev/null || true)}"
@@ -14,11 +46,6 @@ export IMAGE_TAG="${IMAGE_TAG:-$(git -C "${ROOT_DIR}" rev-parse --short HEAD 2>/
 
 log() {
 	printf '[a2a-mcp-demo] %s\n' "$*"
-}
-
-terraform_output_raw() {
-	local name=$1
-	terraform -chdir="${TERRAFORM_DIR}" output -raw "${name}" 2>/dev/null | grep -v '^╷' | grep -v '^│' | grep -v '^╵' | tail -1 || true
 }
 
 require_command() {

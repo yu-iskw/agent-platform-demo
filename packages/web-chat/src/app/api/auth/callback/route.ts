@@ -2,6 +2,7 @@ import { parseGoogleIdToken } from '@agent-platform/mcp-auth';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
+import { DEMO_MODE_COOKIE } from '@/lib/demo-mode';
 import {
   decodePkceCookie,
   exchangeGoogleCode,
@@ -72,5 +73,6 @@ export async function GET(request: Request): Promise<NextResponse> {
 export function DELETE(): NextResponse {
   const response = NextResponse.json({ ok: true });
   response.cookies.delete(SESSION_COOKIE);
+  response.cookies.delete(DEMO_MODE_COOKIE);
   return response;
 }

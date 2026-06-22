@@ -7,9 +7,9 @@
 # Prerequisites: gcloud auth login (and application-default login for Vertex locally).
 #
 # Usage:
-#   ./scripts/agent-cli.sh "List datasets in project ubie-yu-sandbox"
+#   ./scripts/agent-cli.sh "List datasets in project ${PROJECT_ID}"
 #   export AGENT_URL=http://127.0.0.1:8081
-#   ./scripts/agent-cli.sh "List datasets in project ubie-yu-sandbox"
+#   ./scripts/agent-cli.sh "List datasets in project ${PROJECT_ID}"
 
 set -euo pipefail
 

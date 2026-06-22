@@ -1,6 +1,8 @@
 export {
   buildA2aDemoMetadata,
+  isDemoAction,
   parseA2aDemoMetadata,
+  parseDemoAction,
   DEMO_ACTION_KEY,
   DEMO_MODE_KEY,
   DEMO_PROJECT_ID_KEY,
@@ -54,6 +56,7 @@ export { readJsonResponse } from './read-json-response.js';
 export { runWithUserAuthorization } from './session-fetch.js';
 export {
   sendAgentMessage,
+  executeAgentMessageSend,
   type AgentCallerCredentials,
   type SendAgentMessageOptions,
 } from './send-message.js';

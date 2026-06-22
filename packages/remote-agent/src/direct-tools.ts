@@ -7,7 +7,16 @@ import { getVerifiedGoogleUser } from './user-context.js';
 import type { DemoAction } from '@agent-platform/agent-client';
 
 const MCP_SERVER_URL = process.env.MCP_SERVER_URL ?? 'http://localhost:8080/mcp';
-const DEFAULT_PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT ?? 'ubie-yu-sandbox';
+
+function resolveListDatasetsProjectId(projectId: string | undefined): string {
+  const resolved = projectId?.trim() || process.env.GOOGLE_CLOUD_PROJECT?.trim();
+  if (!resolved) {
+    throw new Error(
+      'GOOGLE_CLOUD_PROJECT is required for list_datasets when no projectId is provided',
+    );
+  }
+  return resolved;
+}
 
 type ToolContent = {
   type: string;
@@ -51,7 +60,7 @@ export async function runDirectTool(
   projectId: string | undefined,
 ): Promise<string> {
   if (action === 'list_datasets') {
-    const resolvedProjectId = projectId?.trim() || DEFAULT_PROJECT_ID;
+    const resolvedProjectId = resolveListDatasetsProjectId(projectId);
     const rawText = await callBqMcpTool('list_datasets', { project_id: resolvedProjectId });
     return formatDirectReply(rawText);
   }

@@ -18,25 +18,31 @@ export type SendAgentMessageOptions = {
   demoProjectId?: string;
 };
 
-export async function sendAgentMessage(options: SendAgentMessageOptions): Promise<string> {
+export async function executeAgentMessageSend(
+  options: Omit<SendAgentMessageOptions, 'caller'>,
+): Promise<string> {
   const demoMode = options.demoMode ?? 'agent';
 
-  return runWithUserAuthorization(options.caller.googleAccessToken, options.agentUrl, async () => {
-    const client = await A2AClient.fromCardUrl(resolveAgentCardUrl(options.agentUrl));
-    const response = await client.sendMessage({
-      message: {
-        kind: 'message',
-        messageId: crypto.randomUUID(),
-        role: 'user',
-        parts: [{ kind: 'text', text: options.userMessage }],
-        metadata: buildA2aDemoMetadata({
-          mode: demoMode,
-          action: options.demoAction,
-          projectId: options.demoProjectId,
-        }),
-      },
-    });
-
-    return parseSendMessageResponse(response);
+  const client = await A2AClient.fromCardUrl(resolveAgentCardUrl(options.agentUrl));
+  const response = await client.sendMessage({
+    message: {
+      kind: 'message',
+      messageId: crypto.randomUUID(),
+      role: 'user',
+      parts: [{ kind: 'text', text: options.userMessage }],
+      metadata: buildA2aDemoMetadata({
+        mode: demoMode,
+        action: options.demoAction,
+        projectId: options.demoProjectId,
+      }),
+    },
   });
+
+  return parseSendMessageResponse(response);
+}
+
+export async function sendAgentMessage(options: SendAgentMessageOptions): Promise<string> {
+  return runWithUserAuthorization(options.caller.googleAccessToken, options.agentUrl, async () =>
+    executeAgentMessageSend(options),
+  );
 }

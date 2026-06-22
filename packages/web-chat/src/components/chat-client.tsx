@@ -2,30 +2,38 @@
 
 import { useEffect, useState } from 'react';
 
-import { AgentAvailabilityPanel } from '@/components/agent-availability-panel';
-import { AgentCardPicker } from '@/components/agent-card-picker';
-import { RemoteAgentPlatformInfo } from '@/components/remote-agent-platform-info';
-import { chatPlaceholder, useRemoteAgentData } from '@/components/use-remote-agent-data';
+import { AppShell } from '@/components/app-shell';
+import { ControlPlane } from '@/components/control-plane';
+import { OperationPlane } from '@/components/operation-plane';
+import { useRemoteAgentData } from '@/components/use-remote-agent-data';
+import type { AuthProbeResult } from '@/lib/auth-probe';
+import {
+  parseHttpStatusFromError,
+  type AuthProbePreset,
+  type AuthTraceInput,
+} from '@/lib/auth-trace';
+import { persistMode } from '@/lib/persist-mode';
 import { readJsonResponse } from '@/lib/read-json-response';
 
+import type { DemoAction, DemoMode } from '@agent-platform/agent-client';
 import type { FormEvent } from 'react';
-
-type Props = {
-  email: string;
-};
 
 type ChatResponse = {
   reply?: string;
   useRemoteAgent?: boolean;
+  demoMode?: DemoMode;
   agentId?: string;
   routed?: boolean;
   selectedAgentId?: string;
+  authPreset?: AuthProbePreset;
   error?: string;
 };
 
-const borderLight = '1px solid #ccc';
 const chatModeApiLabel = 'Chat mode API';
-const chatModeUpdateError = 'Failed to update chat mode';
+const demoModeApiLabel = 'Demo mode API';
+const demoModeApiPath = '/api/demo-mode';
+const demoModeUpdateError = 'Failed to update demo mode';
+const authProbeApiLabel = 'Auth probe API';
 
 function isRemoteSendBlocked(
   useRemoteAgent: boolean,
@@ -40,44 +48,46 @@ function isRemoteSendBlocked(
   return remote.policyAgents.length > 0 && !remote.policyAgents.some((agent) => agent.enabled);
 }
 
-async function persistChatMode(mode: 'local' | 'remote'): Promise<void> {
-  const response = await fetch('/api/chat-mode', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mode }),
-  });
-  if (!response.ok) {
-    const data = await readJsonResponse<{ error?: string }>(response, chatModeApiLabel);
-    throw new Error(data.error ?? chatModeUpdateError);
-  }
-}
-
-export default function ChatClient({ email }: Props): React.JSX.Element {
+export default function ChatClient(): React.JSX.Element {
   const [useRemoteAgent, setUseRemoteAgent] = useState(false);
+  const [demoMode, setDemoMode] = useState<DemoMode>('agent');
   const remote = useRemoteAgentData(useRemoteAgent);
   const [message, setMessage] = useState('');
   const [reply, setReply] = useState<string | null>(null);
   const [replyAgentName, setReplyAgentName] = useState<string | null>(null);
   const [replyViaRemote, setReplyViaRemote] = useState<boolean | null>(null);
+  const [replyDemoMode, setReplyDemoMode] = useState<DemoMode | null>(null);
   const [replyRouted, setReplyRouted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [modeError, setModeError] = useState<string | null>(null);
+  const [authTraceInput, setAuthTraceInput] = useState<AuthTraceInput | null>(null);
+  const [authPreset, setAuthPreset] = useState<AuthProbePreset>('full');
+  const [probing, setProbing] = useState(false);
 
   useEffect(() => {
     void (async () => {
       try {
-        const response = await fetch('/api/chat-mode');
-        if (!response.ok) {
-          return;
+        const [chatResponse, demoResponse] = await Promise.all([
+          fetch('/api/chat-mode'),
+          fetch(demoModeApiPath),
+        ]);
+        if (chatResponse.ok) {
+          const chatData = await readJsonResponse<{ mode?: 'local' | 'remote' }>(
+            chatResponse,
+            chatModeApiLabel,
+          );
+          setUseRemoteAgent(chatData.mode === 'remote');
         }
-        const data = await readJsonResponse<{ mode?: 'local' | 'remote' }>(
-          response,
-          chatModeApiLabel,
-        );
-        setUseRemoteAgent(data.mode === 'remote');
+        if (demoResponse.ok) {
+          const demoData = await readJsonResponse<{ mode?: DemoMode }>(
+            demoResponse,
+            demoModeApiLabel,
+          );
+          setDemoMode(demoData.mode === 'direct' ? 'direct' : 'agent');
+        }
       } catch {
-        // Keep default local mode when session cookie is unavailable.
+        // Keep defaults when session cookie is unavailable.
       }
     })();
   }, []);
@@ -86,190 +96,249 @@ export default function ChatClient({ email }: Props): React.JSX.Element {
     remote.agents.find((agent) => agent.id === remote.selectedAgentId) ??
     remote.policyAgents.find((agent) => agent.id === remote.selectedAgentId);
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
+  const showDirectProofControls = useRemoteAgent && !remote.policyLoading;
+
+  const policyUnavailable =
+    useRemoteAgent &&
+    !remote.policyLoading &&
+    !remote.selectedAgentId &&
+    Boolean(remote.policyError);
+
+  async function sendChatRequest(input: {
+    message: string;
+    demoAction?: DemoAction;
+  }): Promise<void> {
     setLoading(true);
     setError(null);
     setReply(null);
     setReplyAgentName(null);
     setReplyViaRemote(null);
+    setReplyDemoMode(null);
     setReplyRouted(false);
 
+    let httpOk = false;
+    let responseError: string | null = null;
+    let responseReply: string | null = null;
+    let responseUseRemote = useRemoteAgent;
+    let responseDemoMode: DemoMode | null = null;
+
+    let responseAuthPreset: AuthProbePreset | null = useRemoteAgent ? authPreset : null;
+    let responseHttpStatus: number | null = null;
+
     try {
+      const proofAgentId = input.demoAction
+        ? remote.selectedAgentId || 'bigquery'
+        : remote.selectedAgentId;
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message,
-          agentId: remote.selectedAgentId,
+          message: input.message,
+          agentId: proofAgentId,
+          ...(useRemoteAgent ? { authPreset } : {}),
+          ...(input.demoAction ? { demoAction: input.demoAction } : {}),
         }),
       });
       const data = await readJsonResponse<ChatResponse>(response, 'Chat API');
+      httpOk = response.ok;
+      responseAuthPreset = data.authPreset ?? (useRemoteAgent ? authPreset : null);
+      responseHttpStatus = response.ok
+        ? response.status
+        : (parseHttpStatusFromError(data.error ?? null) ?? response.status);
+
       if (!response.ok) {
         throw new Error(data.error ?? 'Request failed');
       }
 
-      setReply(data.reply ?? '');
-      setReplyViaRemote(data.useRemoteAgent ?? useRemoteAgent);
+      responseReply = data.reply ?? '';
+      responseUseRemote = data.useRemoteAgent ?? useRemoteAgent;
+      responseDemoMode = data.demoMode ?? null;
+
+      setReply(responseReply);
+      setReplyViaRemote(responseUseRemote);
+      setReplyDemoMode(responseDemoMode);
       setReplyRouted(Boolean(data.routed));
-      if (data.useRemoteAgent ?? useRemoteAgent) {
+      if (responseUseRemote) {
         const replyAgent =
           remote.agents.find((agent) => agent.id === data.agentId) ??
           remote.policyAgents.find((agent) => agent.id === data.agentId);
         setReplyAgentName(replyAgent?.name ?? data.agentId ?? remote.selectedAgentId);
       }
-      setMessage('');
+      if (!input.demoAction) {
+        setMessage('');
+      }
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Unknown error');
+      httpOk = false;
+      responseError = submitError instanceof Error ? submitError.message : 'Unknown error';
+      responseHttpStatus = parseHttpStatusFromError(responseError);
+      setError(responseError);
     } finally {
+      setAuthTraceInput({
+        useRemoteAgent: responseUseRemote,
+        demoMode: responseDemoMode,
+        httpOk,
+        httpStatus: responseHttpStatus,
+        error: responseError,
+        reply: responseReply,
+        probePreset: responseAuthPreset,
+      });
       setLoading(false);
     }
   }
 
-  const remoteBusy = useRemoteAgent && (remote.policyLoading || remote.agentsLoading);
-  const sendDisabled =
-    loading ||
-    message.trim().length === 0 ||
-    remoteBusy ||
-    isRemoteSendBlocked(useRemoteAgent, remote);
+  async function runAuthProbe(): Promise<void> {
+    setProbing(true);
+    setError(null);
 
-  const replyModeLabel =
-    replyViaRemote === false
-      ? 'Reply (local web-chat agent)'
-      : `Reply (remote-agent / ${replyAgentName ?? 'A2A agent'} via A2A)`;
+    let httpOk = false;
+    let responseError: string | null = null;
+    let responseHttpStatus: number | null = null;
+
+    try {
+      const response = await fetch('/api/auth-probe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preset: authPreset }),
+      });
+      const data = await readJsonResponse<AuthProbeResult & { error?: string }>(
+        response,
+        authProbeApiLabel,
+      );
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Probe failed');
+      }
+
+      httpOk = data.ok;
+      responseHttpStatus = data.httpStatus;
+      responseError = data.ok ? null : data.error || `HTTP ${data.httpStatus}`;
+    } catch (probeError) {
+      httpOk = false;
+      responseError = probeError instanceof Error ? probeError.message : 'Probe failed';
+      responseHttpStatus = parseHttpStatusFromError(responseError);
+      setError(responseError);
+    } finally {
+      setAuthTraceInput({
+        useRemoteAgent: true,
+        demoMode: null,
+        httpOk,
+        httpStatus: responseHttpStatus,
+        error: responseError,
+        reply: null,
+        probePreset: authPreset,
+      });
+      setProbing(false);
+    }
+  }
+
+  function onSubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    void sendChatRequest({ message });
+  }
+
+  function handleChatModeChange(remoteEnabled: boolean): void {
+    setModeError(null);
+    setUseRemoteAgent(remoteEnabled);
+    const tasks = [
+      persistMode('/api/chat-mode', remoteEnabled ? 'remote' : 'local', {
+        apiLabel: chatModeApiLabel,
+        defaultError: 'Failed to update chat mode',
+      }),
+    ];
+    if (!remoteEnabled) {
+      setDemoMode('agent');
+      tasks.push(
+        persistMode(demoModeApiPath, 'agent', {
+          apiLabel: demoModeApiLabel,
+          defaultError: demoModeUpdateError,
+        }),
+      );
+    }
+    void Promise.all(tasks).catch((modeUpdateError) => {
+      setModeError(
+        modeUpdateError instanceof Error ? modeUpdateError.message : 'Failed to update mode',
+      );
+    });
+  }
+
+  function handleDemoModeChange(mode: DemoMode): void {
+    setModeError(null);
+    setDemoMode(mode);
+    void persistMode(demoModeApiPath, mode, {
+      apiLabel: demoModeApiLabel,
+      defaultError: demoModeUpdateError,
+    }).catch((modeUpdateError) => {
+      setModeError(
+        modeUpdateError instanceof Error ? modeUpdateError.message : demoModeUpdateError,
+      );
+    });
+  }
+
+  function handleAgentSelect(agentId: string): void {
+    remote.setSelectedAgentId(agentId);
+    if (agentId !== 'bigquery' && demoMode === 'direct') {
+      setDemoMode('agent');
+      void persistMode(demoModeApiPath, 'agent', {
+        apiLabel: demoModeApiLabel,
+        defaultError: demoModeUpdateError,
+      }).catch(() => {
+        // Non-fatal; server downgrades direct mode on routing anyway.
+      });
+    }
+  }
+
+  const authProfileBlocksSend = useRemoteAgent && authPreset !== 'full';
+  const remoteBusy = useRemoteAgent && (remote.policyLoading || remote.agentsLoading);
+  const remoteBlocked = isRemoteSendBlocked(useRemoteAgent, remote);
+  const sendDisabled =
+    loading || message.trim().length === 0 || remoteBusy || remoteBlocked || authProfileBlocksSend;
 
   return (
-    <section>
-      <p>
-        Signed in as <strong>{email}</strong>
-      </p>
-
-      <fieldset
-        style={{
-          border: borderLight,
-          borderRadius: 4,
-          marginTop: '1rem',
-          padding: '0.75rem',
-        }}
-      >
-        <legend>Remote-agent (A2A)</legend>
-        <label style={{ marginRight: '1rem' }}>
-          <input
-            type="radio"
-            name="remote-agent"
-            checked={useRemoteAgent}
-            onChange={() => {
-              setModeError(null);
-              setUseRemoteAgent(true);
-              void persistChatMode('remote').catch((modeUpdateError) => {
-                setModeError(
-                  modeUpdateError instanceof Error ? modeUpdateError.message : chatModeUpdateError,
-                );
-              });
-            }}
-          />{' '}
-          Use remote-agent via A2A
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="remote-agent"
-            checked={!useRemoteAgent}
-            onChange={() => {
-              setModeError(null);
-              setUseRemoteAgent(false);
-              void persistChatMode('local').catch((modeUpdateError) => {
-                setModeError(
-                  modeUpdateError instanceof Error ? modeUpdateError.message : chatModeUpdateError,
-                );
-              });
-            }}
-          />{' '}
-          Local web-chat agent only
-        </label>
-      </fieldset>
-
-      {modeError ? <p style={{ color: 'crimson', marginTop: '0.75rem' }}>{modeError}</p> : null}
-
-      {useRemoteAgent ? (
-        <>
-          <AgentAvailabilityPanel
-            agents={remote.policyAgents}
-            loading={remote.policyLoading}
-            error={remote.policyError}
-            togglingId={remote.togglingId}
-            onToggle={(agentId, enabled) => {
-              void remote.toggleAgent(agentId, enabled);
-            }}
-          />
-          {remote.agentsLoading ? <p style={{ marginTop: '0.75rem' }}>Loading agents…</p> : null}
-          {remote.agentsError && !remote.policyError ? (
-            <p style={{ color: 'crimson', marginTop: '0.75rem' }}>{remote.agentsError}</p>
-          ) : null}
-          <AgentCardPicker
-            agents={remote.selectableAgents}
-            selectedAgentId={remote.selectedAgentId}
-            onSelectAgent={remote.setSelectedAgentId}
-          />
-          <p style={{ color: '#555', fontSize: '0.9rem', marginTop: '0.5rem' }}>
-            Default agent for general chat. BigQuery dataset questions automatically use the
-            BigQuery Assistant when it is enabled.
-          </p>
-          <RemoteAgentPlatformInfo
-            selectedAgentId={remote.selectedAgentId}
-            agentName={selectedAgent?.name ?? remote.selectedAgentId}
-            platformInfo={remote.platformInfo}
-            loading={remote.platformInfoLoading}
-            error={remote.platformInfoError}
-          />
-        </>
-      ) : null}
-
-      <form
-        onSubmit={(event) => {
-          void onSubmit(event);
-        }}
-        style={{ display: 'grid', gap: '0.75rem', marginTop: '1rem' }}
-      >
-        <textarea
-          value={message}
-          onChange={(event) => {
-            setMessage(event.target.value);
+    <AppShell
+      control={
+        <ControlPlane
+          useRemoteAgent={useRemoteAgent}
+          demoMode={demoMode}
+          modeError={modeError}
+          loading={loading}
+          remote={remote}
+          selectedAgentName={selectedAgent?.name ?? remote.selectedAgentId}
+          showDirectProofControls={showDirectProofControls}
+          onChatModeChange={handleChatModeChange}
+          onDemoModeChange={handleDemoModeChange}
+          onProofAction={(action, proofMessage) => {
+            void sendChatRequest({ message: proofMessage, demoAction: action });
           }}
-          placeholder={chatPlaceholder(remote.selectedAgentId, useRemoteAgent)}
-          rows={4}
-          style={{ width: '100%', padding: '0.5rem' }}
+          onAgentSelect={handleAgentSelect}
+          authPreset={authPreset}
+          probing={probing}
+          onAuthPresetChange={setAuthPreset}
+          onRunAuthProbe={() => {
+            void runAuthProbe();
+          }}
         />
-        <button type="submit" disabled={sendDisabled}>
-          {loading ? 'Sending…' : 'Send'}
-        </button>
-      </form>
-
-      {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
-      {reply ? (
-        <div style={{ marginTop: '1rem' }}>
-          <p>
-            <strong>{replyModeLabel}</strong>
-            {replyRouted ? (
-              <span
-                style={{ display: 'block', color: '#555', fontWeight: 400, marginTop: '0.25rem' }}
-              >
-                Routed to {replyAgentName} based on your message (card selection was a different
-                agent).
-              </span>
-            ) : null}
-          </p>
-          <pre
-            style={{
-              background: '#f4f4f4',
-              padding: '1rem',
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {reply}
-          </pre>
-        </div>
-      ) : null}
-    </section>
+      }
+      operation={
+        <OperationPlane
+          useRemoteAgent={useRemoteAgent}
+          selectedAgentId={remote.selectedAgentId}
+          demoMode={demoMode}
+          message={message}
+          reply={reply}
+          replyAgentName={replyAgentName}
+          replyViaRemote={replyViaRemote}
+          replyDemoMode={replyDemoMode}
+          replyRouted={replyRouted}
+          error={error}
+          loading={loading}
+          sendDisabled={sendDisabled}
+          authProfileBlocksSend={authProfileBlocksSend}
+          policyUnavailable={policyUnavailable}
+          authTraceInput={authTraceInput}
+          onMessageChange={setMessage}
+          onSubmit={onSubmit}
+        />
+      }
+    />
   );
 }

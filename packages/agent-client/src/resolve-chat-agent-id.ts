@@ -1,7 +1,7 @@
 import type { AgentPolicyEntry } from './pick-enabled-agent-id.js';
 
 const BIGQUERY_INTENT_PATTERN =
-  /\b(bigquery|datasets?|dataset\s+list|list\s+datasets|ubie-yu-sandbox|gcp\s+project)\b/i;
+  /\b(bigquery|datasets?|dataset\s+list|list\s+datasets|gcp\s+project)\b/i;
 
 export function looksLikeBigQueryRequest(message: string): boolean {
   return BIGQUERY_INTENT_PATTERN.test(message);

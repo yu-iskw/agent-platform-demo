@@ -1,6 +1,5 @@
 import { GoogleAuth } from 'google-auth-library';
 
-const DEFAULT_PROJECT = 'ubie-yu-sandbox';
 const DEFAULT_LOCATION = 'asia-northeast1';
 const DEFAULT_MODEL = 'gemini-2.5-flash';
 
@@ -13,7 +12,10 @@ type GenerateContentResponse = {
 };
 
 export async function runLocalChatAgent(userMessage: string, email: string): Promise<string> {
-  const project = process.env.GOOGLE_CLOUD_PROJECT ?? DEFAULT_PROJECT;
+  const project = process.env.GOOGLE_CLOUD_PROJECT?.trim();
+  if (!project) {
+    throw new Error('GOOGLE_CLOUD_PROJECT is required for local chat agent mode');
+  }
   const location = process.env.GOOGLE_CLOUD_LOCATION ?? DEFAULT_LOCATION;
   const model = process.env.WEB_CHAT_AGENT_MODEL ?? DEFAULT_MODEL;
 

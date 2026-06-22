@@ -41,8 +41,13 @@ export function buildA2aDemoMetadata(input: {
   return { 'demo.mode': input.mode };
 }
 
-function isDemoAction(value: unknown): value is DemoAction {
+export function isDemoAction(value: unknown): value is DemoAction {
   return value === 'list_datasets' || value === 'get_authenticated_user';
+}
+
+export function parseDemoAction(value: string | undefined): DemoAction | undefined {
+  const trimmed = value?.trim();
+  return isDemoAction(trimmed) ? trimmed : undefined;
 }
 
 export function parseA2aDemoMetadata(message: MessageWithMetadata | undefined): A2aDemoMetadata {

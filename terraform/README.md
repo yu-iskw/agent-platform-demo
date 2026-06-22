@@ -1,6 +1,6 @@
 # Terraform — A2A + MCP demo foundation
 
-Provisions **foundation only** for `ubie-yu-sandbox`. Cloud Run services are deployed via shell scripts in `../scripts/`.
+Provisions **foundation only** for your GCP project (`project_id` in tfvars). Cloud Run services are deployed via shell scripts in `../scripts/`.
 
 ## What this creates
 

@@ -36,3 +36,11 @@ log "Smoke 1/2: list_datasets"
 "${SCRIPT_DIR}/agent-cli.sh" "List datasets in project ${PROJECT_ID}"
 log "Smoke 2/2: credential introspection"
 "${SCRIPT_DIR}/agent-cli.sh" "What Google account am I using and what credentials access BigQuery?"
+
+log "Negative check: unauthenticated api-catalog must not return 200"
+UNAUTH_STATUS="$(curl -s -o /dev/null -w "%{http_code}" "${AGENT_URL}/.well-known/api-catalog" || true)"
+if [[ ${UNAUTH_STATUS} == "200" ]]; then
+	echo "FAIL: expected non-200 without Cloud Run IAM token, got ${UNAUTH_STATUS}" >&2
+	exit 1
+fi
+log "PASS: unauthenticated api-catalog returned ${UNAUTH_STATUS} (expected non-200)"

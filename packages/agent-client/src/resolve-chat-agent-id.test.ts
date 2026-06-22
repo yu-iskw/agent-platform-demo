@@ -4,7 +4,7 @@ import { looksLikeBigQueryRequest, resolveChatAgentId } from './resolve-chat-age
 
 describe('looksLikeBigQueryRequest', () => {
   it('detects dataset listing prompts', () => {
-    expect(looksLikeBigQueryRequest('List datasets in ubie-yu-sandbox')).toBe(true);
+    expect(looksLikeBigQueryRequest('List datasets in my-gcp-project')).toBe(true);
     expect(looksLikeBigQueryRequest('Can you access BigQuery?')).toBe(true);
   });
 
@@ -20,7 +20,7 @@ describe('resolveChatAgentId', () => {
   ];
 
   it('routes BigQuery prompts to bigquery when enabled even if general is selected', () => {
-    expect(resolveChatAgentId('List datasets in ubie-yu-sandbox', 'general', policy)).toEqual({
+    expect(resolveChatAgentId('List datasets in my-gcp-project', 'general', policy)).toEqual({
       agentId: 'bigquery',
       routed: true,
     });

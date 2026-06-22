@@ -277,5 +277,5 @@ export function chatPlaceholder(agentId: string, useRemoteAgent: boolean): strin
   if (agentId === 'general') {
     return 'Ask a general question (no BigQuery tools)';
   }
-  return 'List datasets in ubie-yu-sandbox';
+  return 'List datasets in your GCP project';
 }
