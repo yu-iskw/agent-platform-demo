@@ -133,7 +133,7 @@ flowchart LR
   DemoMode -->|agent| ADK
   A2AMw --> BQAgent
   A2AMw --> GenAgent
-  DirectTools -->|"Authorization SA JWT x-user-access-token"| McpAuth
+  DirectTools -->|"Authorization SA JWT x-delegation-token"| McpAuth
   ADK --> McpAuth
   McpAuth --> ToolUser
   McpAuth --> ToolList
@@ -230,20 +230,28 @@ Served at `GET /.well-known/oauth-protected-resource`. When proxied locally, the
 - IDE clients (Cursor, Claude Code) fetch PRM, run Google OAuth, then send the access token on MCP requests.
 - **Google does not support MCP Dynamic Client Registration.** Cursor requires a pre-registered Desktop OAuth client ID via environment variable. Claude Code can connect with URL and callback port only.
 
-Cloud mode adds `verifyMcpServiceCaller`: the `Authorization` header must carry a valid Cloud Run **identity JWT** from an authorized caller (service account or user with `run.invoker`). The delegated user token travels separately in `x-user-access-token`.
+Cloud mode adds `verifyMcpServiceCaller`: the `Authorization` header must carry a valid Cloud Run **identity JWT** from an authorized caller (service account or user with `run.invoker`). On the agent path, user identity travels as a short-lived delegation JWT in `x-delegation-token`.
 
-### 4.5 Token Delegation
+### 4.5 Token Delegation and Hop Token Exchange
 
-Token delegation passes a user's OAuth access token across service boundaries so downstream services can validate **user identity** without re-authenticating the user at each hop. Cloud Run requires a separate **identity JWT** on `Authorization` for private services, so this demo uses **dual headers**:
+**Client → agent (token delegation):** The user's Google OAuth access token is forwarded on `X-Session-Authorization` (Cloud Run) or `Authorization` (local) so `remote-agent` can validate identity via `getTokenInfo`.
 
-| Hop                                      | `Authorization`            | User delegation header                                |
+**Agent → bq-mcp (hop token exchange):** After validating the Google token, `remote-agent` mints a short-lived HS256 **delegation JWT** (`iss=remote-agent`, `aud` = MCP origin, ~5 min TTL) and sends it on `x-delegation-token`. The raw Google access token is **not** forwarded on this hop when `DELEGATION_JWT_SECRET` is configured.
+
+**IDE direct MCP (passthrough):** Clients that call `bq-mcp` without the agent still send the Google access token on `x-user-access-token` / `Authorization`.
+
+Cloud Run requires a separate **identity JWT** on `Authorization` for private services, so this demo uses **dual headers**:
+
+| Hop                                      | `Authorization`            | User identity header                                  |
 | ---------------------------------------- | -------------------------- | ----------------------------------------------------- |
 | Client → remote-agent (Cloud Run)        | Service identity JWT       | `X-Session-Authorization: Bearer <user_access_token>` |
 | Client → remote-agent (local)            | User access token          | —                                                     |
-| remote-agent → bq-mcp-server (Cloud Run) | Service identity JWT       | `x-user-access-token: <user_access_token>`            |
+| remote-agent → bq-mcp-server (Cloud Run) | Service identity JWT       | `x-delegation-token: Bearer <delegation_jwt>`         |
 | IDE → gcloud proxy → MCP                 | Proxy replaces with SA JWT | User token preserved in `x-session-authorization`     |
 
-**Principle:** Cloud Run IAM proves _who may reach the service_; the delegated user token proves _on behalf of which Google user_ the action runs. User OAuth tokens are **never** sent to BigQuery APIs directly.
+**Principle:** Cloud Run IAM proves _who may reach the service_; the delegation JWT (or Google token on IDE path) proves _on behalf of which Google user_ the action runs. User OAuth tokens are **never** sent to BigQuery APIs directly.
+
+This hop exchange is a **demo JWT pattern**, not [RFC 8693](https://datatracker.ietf.org/doc/html/rfc8693) OAuth Token Exchange.
 
 ### 4.6 Related Technologies
 
@@ -277,12 +285,12 @@ Authorization — _who may use this demo_ — is enforced **outside** applicatio
 
 ### 5.2 Terminology
 
-| Term               | Meaning in this demo                                                             |
-| ------------------ | -------------------------------------------------------------------------------- |
-| **Google SSO**     | Browser OAuth to web-chat; runtime validation via Google token info at agent/MCP |
-| **Cloud Run IAM**  | `allowed_emails` → `run.invoker` (network gate to private URLs)                  |
-| **A2A with OAuth** | User token on `X-Session-Authorization` (Cloud Run) or `Authorization` (local)   |
-| **MCP with OAuth** | PRM discovery + delegated user token; cloud mode adds SA caller verification     |
+| Term               | Meaning in this demo                                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------------------------------- |
+| **Google SSO**     | Browser OAuth to web-chat; runtime validation via Google token info at agent/MCP                              |
+| **Cloud Run IAM**  | `allowed_emails` → `run.invoker` (network gate to private URLs)                                               |
+| **A2A with OAuth** | User token on `X-Session-Authorization` (Cloud Run) or `Authorization` (local)                                |
+| **MCP with OAuth** | PRM discovery + user identity at MCP; agent path uses hop token exchange; IDE direct path passes Google token |
 
 ### 5.3 MCP Tool Response Shapes (Proof Fields)
 
@@ -291,12 +299,16 @@ Authorization — _who may use this demo_ — is enforced **outside** applicatio
 ```json
 {
   "email": "user@example.com",
-  "credential_source": "user_oauth_access_token",
+  "credential_source": "delegation_jwt",
+  "credential_issuer": "remote-agent",
+  "credential_audience": "https://bq-mcp-xxx.run.app",
   "bigquery_credential_source": "impersonated_service_account",
   "bigquery_service_account": "bq-metadata-reader@PROJECT.iam.gserviceaccount.com",
   "auth_mode": "cloud"
 }
 ```
+
+IDE direct MCP calls may still return `"credential_source": "user_oauth_access_token"`.
 
 **list_datasets** returns JSON including `status`, `bigquery_service_account`, and dataset list or error details.
 
@@ -319,10 +331,10 @@ sequenceDiagram
   User->>WebChat: remote plus direct mode
   User->>WebChat: Prove identity
   WebChat->>Agent: A2A message/send with SA JWT and user token
-  Note over Agent: Validate delegated user access token
+  Note over Agent: Validate Google token mint delegation JWT
   Agent->>MCP: callTool get_authenticated_user
-  Note over MCP: verifyMcpServiceCaller plus user token
-  MCP-->>Agent: credential_source user_oauth_access_token
+  Note over MCP: verifyMcpServiceCaller plus delegation JWT
+  MCP-->>Agent: credential_source delegation_jwt
   Agent-->>WebChat: formatted JSON reply
   WebChat-->>User: Auth trace shows email and SA
 ```
@@ -400,7 +412,7 @@ sequenceDiagram
   CLI->>CLI: gcloud print-access-token
   CLI->>CLI: gcloud print-identity-token
   CLI->>Agent: A2A with identity token and X-Session-Authorization
-  Agent->>MCP: MCP with SA JWT and x-user-access-token
+  Agent->>MCP: MCP with SA JWT and x-delegation-token
   MCP-->>Agent: datasets or user info
   Agent-->>CLI: agent response
 ```
@@ -415,12 +427,12 @@ The demo console uses a **control plane** (left) and **operation plane** (right)
 
 **Prerequisites:** Web chat running locally on port 3000, signed in with Google, Cloud Run agent deployed and reachable.
 
-| Step | UI settings            | Action                                                                      | Expected outcome                                                          |
-| ---- | ---------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| 1    | Default (local mode)   | Send any message                                                            | Reply from local web-chat agent; no remote-agent call                     |
-| 2    | Remote + Agent via LLM | Ask: _What Google account am I using and what credentials access BigQuery?_ | Natural-language answer citing your email and `bq-metadata-reader` SA     |
-| 3    | Remote + Direct tool   | Click **Prove identity**                                                    | JSON with `"credential_source": "user_oauth_access_token"` and your email |
-| 4    | Remote + Direct tool   | Click **List datasets**                                                     | JSON with `status` and `bigquery_service_account` fields                  |
+| Step | UI settings            | Action                                                                      | Expected outcome                                                      |
+| ---- | ---------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| 1    | Default (local mode)   | Send any message                                                            | Reply from local web-chat agent; no remote-agent call                 |
+| 2    | Remote + Agent via LLM | Ask: _What Google account am I using and what credentials access BigQuery?_ | Natural-language answer citing your email and `bq-metadata-reader` SA |
+| 3    | Remote + Direct tool   | Click **Prove identity**                                                    | JSON with `"credential_source": "delegation_jwt"` and your email      |
+| 4    | Remote + Direct tool   | Click **List datasets**                                                     | JSON with `status` and `bigquery_service_account` fields              |
 
 Direct mode bypasses the LLM and returns raw bq-mcp JSON through remote-agent, proving delegation end-to-end without model nondeterminism.
 
@@ -480,16 +492,16 @@ Then verifies unauthenticated access to `/.well-known/api-catalog` does **not** 
 
 ## 8. Results Matrix
 
-| Test                         | Expected outcome               | What it proves                   |
-| ---------------------------- | ------------------------------ | -------------------------------- |
-| Web local mode               | Local reply                    | Remote stack not used            |
-| Web remote + agent           | LLM answer with user email     | Full A2A + delegation chain      |
-| Web remote + direct identity | JSON `user_oauth_access_token` | User token reached bq-mcp-server |
-| Web remote + direct datasets | JSON with SA field             | BigQuery impersonation path      |
-| curl no auth                 | 403                            | Cloud Run IAM                    |
-| curl IAM only                | 401/403                        | A2A OAuth middleware             |
-| curl no session              | 401                            | Web session gate                 |
-| Automated cloud check        | Smokes pass + IAM negative     | Regression coverage              |
+| Test                         | Expected outcome           | What it proves                            |
+| ---------------------------- | -------------------------- | ----------------------------------------- |
+| Web local mode               | Local reply                | Remote stack not used                     |
+| Web remote + agent           | LLM answer with user email | Full A2A + delegation chain               |
+| Web remote + direct identity | JSON `delegation_jwt`      | Hop token exchange agent to bq-mcp-server |
+| Web remote + direct datasets | JSON with SA field         | BigQuery impersonation path               |
+| curl no auth                 | 403                        | Cloud Run IAM                             |
+| curl IAM only                | 401/403                    | A2A OAuth middleware                      |
+| curl no session              | 401                        | Web session gate                          |
+| Automated cloud check        | Smokes pass + IAM negative | Regression coverage                       |
 
 ---
 
@@ -559,6 +571,7 @@ Chat mode (`local` vs `remote`) is stored in an httpOnly cookie via `/api/chat-m
 5. **Demo scope** — BigQuery access is metadata-only (`list_datasets`); user tokens are not sent to BigQuery APIs.
 6. **Single region** — Cloud Run services deploy to one region (e.g., `asia-northeast1`); no multi-region failover demo.
 7. **Direct tool mode on bigquery agent only** — General agent does not support `demo.mode=direct`.
+8. **Hop JWT exchange, not RFC 8693** — Agent→MCP uses a shared-secret delegation JWT for proof; not a standards-based OAuth Token Exchange or Google downscoped tokens.
 
 ---
 

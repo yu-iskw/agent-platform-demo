@@ -9,6 +9,7 @@ source "${SCRIPT_DIR}/lib/common.sh"
 : "${BQ_METADATA_READER_SA_EMAIL:?BQ_METADATA_READER_SA_EMAIL is required (terraform output bq_metadata_reader_sa_email)}"
 
 resolve_allowed_emails >/dev/null
+resolve_delegation_jwt_secret
 
 MCP_URL="${MCP_SERVER_URL:-$(gcloud run services describe bq-mcp --project="${PROJECT_ID}" --region="${REGION}" --format='value(status.url)')}"
 MCP_SERVER_URL="${MCP_URL%/}/mcp"
@@ -31,7 +32,7 @@ gcloud run deploy remote-agent \
 	--min-instances=1 \
 	--max-instances=1 \
 	--port=8081 \
-	--set-env-vars="MCP_SERVER_URL=${MCP_SERVER_URL},MCP_AUTH_MODE=cloud,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},BQ_METADATA_READER_SA_EMAIL=${BQ_METADATA_READER_SA_EMAIL},GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-us-central1},AGENT_MODEL=${AGENT_MODEL:-gemini-2.5-flash}"
+	--set-env-vars="MCP_SERVER_URL=${MCP_SERVER_URL},MCP_AUTH_MODE=cloud,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},BQ_METADATA_READER_SA_EMAIL=${BQ_METADATA_READER_SA_EMAIL},DELEGATION_JWT_SECRET=${DELEGATION_JWT_SECRET},GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-us-central1},AGENT_MODEL=${AGENT_MODEL:-gemini-2.5-flash}"
 
 AGENT_URL="$(gcloud run services describe remote-agent --project="${PROJECT_ID}" --region="${REGION}" --format='value(status.url)')"
 MCP_RESOURCE_URL="${AGENT_URL%/}/mcp"

@@ -1,4 +1,4 @@
-import { buildMcpCallerHeaders } from '@agent-platform/mcp-auth';
+import { buildMcpCallerHeadersForAgent } from '@agent-platform/mcp-auth';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
@@ -37,9 +37,9 @@ function formatDirectReply(rawText: string): string {
 }
 
 async function callBqMcpTool(toolName: string, args: Record<string, string>): Promise<string> {
-  const { googleAccessToken } = getVerifiedGoogleUser();
+  const { email, googleAccessToken } = getVerifiedGoogleUser();
   const mcpBaseUrl = MCP_SERVER_URL.replace(/\/mcp\/?$/, '');
-  const headers = await buildMcpCallerHeaders(mcpBaseUrl, googleAccessToken);
+  const headers = await buildMcpCallerHeadersForAgent(mcpBaseUrl, { email, googleAccessToken });
 
   const transport = new StreamableHTTPClientTransport(new URL(MCP_SERVER_URL), {
     requestInit: { headers },

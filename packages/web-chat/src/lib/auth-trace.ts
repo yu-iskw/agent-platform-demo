@@ -8,7 +8,7 @@ const LAYER_A2A = 'A2A OAuth';
 const LAYER_MCP = 'MCP delegation';
 const DETAIL_SESSION_OK = 'OAuth session active';
 const DETAIL_SESSION_FAIL = 'Sign in required';
-const DETAIL_MCP_SKIP = 'Use direct proof for bq-mcp trace';
+const DETAIL_MCP_SKIP = 'Use auth proof buttons for MCP trace';
 const DETAIL_A2A_TOKEN = 'Delegated user access token';
 const DETAIL_IAM = 'run.invoker + identity token';
 
@@ -29,6 +29,8 @@ export type AuthTraceInput = {
   error: string | null;
   reply: string | null;
   probePreset?: AuthProbePreset | null;
+  agentId?: string | null;
+  delegationExchangeAvailable?: boolean;
 };
 
 export function parseHttpStatusFromError(error: string | null): number | null {
@@ -73,6 +75,23 @@ function looksLikeMcpProofReply(reply: string | null): boolean {
   );
 }
 
+function resolveMcpDetail(input: AuthTraceInput): string {
+  if (input.reply?.includes('delegation_jwt')) {
+    return 'Hop token exchange (delegation JWT)';
+  }
+  if (input.reply?.includes('user_oauth_access_token')) {
+    return 'x-user-access-token to bq-mcp';
+  }
+  return 'x-user-access-token to bq-mcp';
+}
+
+function usesMcpDelegationChain(input: AuthTraceInput): boolean {
+  if (input.demoMode === 'direct') {
+    return true;
+  }
+  return looksLikeMcpProofReply(input.reply);
+}
+
 function inferA2aStatus(input: AuthTraceInput): AuthLayerStatus {
   if (!input.useRemoteAgent) {
     return 'skipped';
@@ -97,13 +116,13 @@ function inferMcpStatus(input: AuthTraceInput): AuthLayerStatus {
   if (!input.useRemoteAgent) {
     return 'skipped';
   }
-  if (input.demoMode !== 'direct' && !looksLikeMcpProofReply(input.reply)) {
+  if (!usesMcpDelegationChain(input)) {
     return 'skipped';
   }
   if (!input.httpOk) {
     return 'fail';
   }
-  return input.demoMode === 'direct' || looksLikeMcpProofReply(input.reply) ? 'ok' : 'skipped';
+  return 'ok';
 }
 
 function buildProbeAuthTrace(input: AuthTraceInput): AuthLayer[] {
@@ -197,7 +216,7 @@ function buildProbeAuthTrace(input: AuthTraceInput): AuthLayer[] {
           id: 'mcp',
           label: LAYER_MCP,
           status: 'ok',
-          detail: 'x-user-access-token to bq-mcp',
+          detail: resolveMcpDetail(input),
         }
       : mcpSkipped;
 
@@ -272,7 +291,7 @@ export function buildAuthTrace(input: AuthTraceInput): AuthLayer[] {
       id: 'mcp',
       label: LAYER_MCP,
       status: mcpStatus,
-      detail: mcpStatus === 'skipped' ? DETAIL_MCP_SKIP : 'x-user-access-token to bq-mcp',
+      detail: mcpStatus === 'skipped' ? DETAIL_MCP_SKIP : resolveMcpDetail(input),
     },
   ];
 }

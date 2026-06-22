@@ -7,7 +7,20 @@ export {
   type McpSessionRegistry,
   type RunAuthorizedMcpRequestOptions,
 } from './mcp-authorized-handler.js';
-export { buildMcpCallerHeaders } from './build-mcp-caller-headers.js';
+export {
+  buildMcpCallerHeadersForAgent,
+  buildMcpCallerHeadersForDirect,
+} from './build-mcp-caller-headers.js';
+export {
+  DELEGATION_JWT_ISSUER,
+  DELEGATION_TOKEN_HEADER,
+  getDelegationTokenFromHeaders,
+  isDelegationJwtConfigured,
+  mintDelegationJwt,
+  verifyDelegationJwt,
+  type DelegationJwtClaims,
+} from './delegation-jwt.js';
+export { resolveAuthorizedMcpUser, resolveMcpUserContext } from './resolve-mcp-user.js';
 export { resolveDelegatedUserAccessToken } from './delegated-access-token.js';
 export { getEmailFromGoogleAccessToken } from './google-access-token.js';
 export { getHttpHeader } from './http-header.js';
@@ -18,6 +31,7 @@ export { authRouteRateLimit } from './rate-limit.js';
 export {
   createGoogleUserAuthMiddleware,
   type GoogleUserAuthMiddlewareOptions,
+  type CredentialSource,
   type GoogleUserContext,
 } from './google-user-auth-middleware.js';
 export {

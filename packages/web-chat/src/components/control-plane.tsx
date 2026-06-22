@@ -3,7 +3,7 @@
 import { AgentAvailabilityPanel } from '@/components/agent-availability-panel';
 import { AgentCardPicker } from '@/components/agent-card-picker';
 import { AuthProbePanel } from '@/components/auth-probe-panel';
-import { DirectProofControls } from '@/components/direct-proof-controls';
+import { AuthProofControls } from '@/components/auth-proof-controls';
 import { NegativeChecksPanel } from '@/components/negative-checks-panel';
 import { RemoteAgentPlatformInfo } from '@/components/remote-agent-platform-info';
 import { SegmentedToggle } from '@/components/segmented-toggle';
@@ -11,18 +11,16 @@ import type { RemoteAgentData } from '@/components/use-remote-agent-data';
 import type { AuthProbePreset } from '@/lib/auth-trace';
 import { panelStyle } from '@/lib/ui-tokens';
 
-import type { DemoAction, DemoMode } from '@agent-platform/agent-client';
+import type { DemoAction } from '@agent-platform/agent-client';
 
 type ControlPlaneProps = {
   useRemoteAgent: boolean;
-  demoMode: DemoMode;
   modeError: string | null;
   loading: boolean;
   remote: RemoteAgentData;
   selectedAgentName: string;
-  showDirectProofControls: boolean;
+  showAuthProofControls: boolean;
   onChatModeChange: (remote: boolean) => void;
-  onDemoModeChange: (mode: DemoMode) => void;
   onProofAction: (action: DemoAction, message: string) => void;
   onAgentSelect: (agentId: string) => void;
   authPreset: AuthProbePreset;
@@ -33,14 +31,12 @@ type ControlPlaneProps = {
 
 export function ControlPlane({
   useRemoteAgent,
-  demoMode,
   modeError,
   loading,
   remote,
   selectedAgentName,
-  showDirectProofControls,
+  showAuthProofControls,
   onChatModeChange,
-  onDemoModeChange,
   onProofAction,
   onAgentSelect,
   authPreset,
@@ -110,12 +106,10 @@ export function ControlPlane({
           <p style={{ color: '#555', fontSize: '0.85rem', marginTop: '0.5rem' }}>
             BigQuery-flavored prompts auto-route to BigQuery Assistant when enabled.
           </p>
-          {showDirectProofControls ? (
-            <DirectProofControls
-              demoMode={demoMode}
+          {showAuthProofControls ? (
+            <AuthProofControls
               loading={loading}
               controlsDisabled={loading || probing || authPreset !== 'full'}
-              onDemoModeChange={onDemoModeChange}
               onProofAction={onProofAction}
             />
           ) : null}

@@ -48,6 +48,27 @@ log() {
 	printf '[a2a-mcp-demo] %s\n' "$*"
 }
 
+resolve_delegation_jwt_secret() {
+	if [[ -n ${DELEGATION_JWT_SECRET-} ]]; then
+		export DELEGATION_JWT_SECRET
+		return 0
+	fi
+
+	local secret_file="${ROOT_DIR}/.delegation-jwt-secret"
+	if [[ -f ${secret_file} ]]; then
+		DELEGATION_JWT_SECRET="$(tr -d '\n' <"${secret_file}")"
+		export DELEGATION_JWT_SECRET
+		return 0
+	fi
+
+	require_command openssl
+	DELEGATION_JWT_SECRET="$(openssl rand -base64 32)"
+	printf '%s' "${DELEGATION_JWT_SECRET}" >"${secret_file}"
+	chmod 600 "${secret_file}"
+	export DELEGATION_JWT_SECRET
+	log "Generated DELEGATION_JWT_SECRET in ${secret_file} (shared by bq-mcp and remote-agent)"
+}
+
 require_command() {
 	local name=$1
 	if ! command -v "${name}" >/dev/null 2>&1; then

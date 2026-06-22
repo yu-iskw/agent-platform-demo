@@ -3,10 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 
-import { resolveDelegatedUserAccessToken } from './delegated-access-token.js';
-import { getEmailFromGoogleAccessToken } from './google-access-token.js';
 import { getHttpHeader } from './http-header.js';
 import { resolvePrmResourceUrl, writeProtectedResourceMetadata } from './mcp-protected-resource.js';
+import { resolveAuthorizedMcpUser } from './resolve-mcp-user.js';
 
 import type { GoogleUserContext } from './google-user-auth-middleware.js';
 import type { ServiceCallerIdentity } from './service-auth-inbound.js';
@@ -113,6 +112,7 @@ export function mountMcpOAuthRoutes(
 export type RunAuthorizedMcpRequestOptions = {
   sessionRegistry: McpSessionRegistry;
   allowInitialize: boolean;
+  expectedAudience: string;
   verifyServiceCaller?: (req: Request) => Promise<ServiceCallerIdentity | undefined>;
   onUnauthorized?: () => void;
   onMissingUserToken: () => void;
@@ -121,44 +121,25 @@ export type RunAuthorizedMcpRequestOptions = {
   handle: (transport: StreamableHTTPServerTransport, user: GoogleUserContext) => Promise<void>;
 };
 
-async function verifyDelegatedUserAccessToken(userToken: string): Promise<GoogleUserContext> {
-  const email = await getEmailFromGoogleAccessToken(userToken);
-  return { email, googleAccessToken: userToken };
-}
-
-async function resolveAuthorizedUser(
-  req: Request,
-  caller: ServiceCallerIdentity | undefined,
-): Promise<GoogleUserContext | undefined> {
-  const userToken = resolveDelegatedUserAccessToken(req.headers, {
-    excludeJwtFromAuthorization: true,
-  });
-  if (!userToken) {
-    return undefined;
-  }
-
-  const user = await verifyDelegatedUserAccessToken(userToken);
-  if (caller && !caller.isServiceAccount && caller.email !== user.email) {
-    throw new Error('Delegated user token does not match caller identity');
-  }
-
-  return user;
-}
-
 async function resolveAuthorizedUserContext(
   req: Request,
   caller: ServiceCallerIdentity | undefined,
-  callbacks: Pick<RunAuthorizedMcpRequestOptions, 'onMissingUserToken' | 'onInvalidUserToken'>,
+  options: Pick<
+    RunAuthorizedMcpRequestOptions,
+    'expectedAudience' | 'onMissingUserToken' | 'onInvalidUserToken'
+  >,
 ): Promise<GoogleUserContext | undefined> {
   try {
-    const resolvedUser = await resolveAuthorizedUser(req, caller);
+    const resolvedUser = await resolveAuthorizedMcpUser(req.headers, caller, {
+      expectedAudience: options.expectedAudience,
+    });
     if (!resolvedUser) {
-      callbacks.onMissingUserToken();
+      options.onMissingUserToken();
       return undefined;
     }
     return resolvedUser;
   } catch {
-    callbacks.onInvalidUserToken();
+    options.onInvalidUserToken();
     return undefined;
   }
 }
@@ -180,6 +161,7 @@ export async function runAuthorizedMcpRequest(
 
   const sessionId = getHttpHeader(req.headers, MCP_SESSION_HEADER);
   const userCallbacks = {
+    expectedAudience: options.expectedAudience,
     onMissingUserToken: options.onMissingUserToken,
     onInvalidUserToken: options.onInvalidUserToken,
   };

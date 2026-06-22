@@ -1,4 +1,4 @@
-import { buildMcpCallerHeaders } from '@agent-platform/mcp-auth';
+import { buildMcpCallerHeadersForAgent } from '@agent-platform/mcp-auth';
 import {
   InMemoryRunner,
   isFinalResponse,
@@ -18,7 +18,7 @@ const MCP_TOOL_NAMES = ['list_datasets', 'get_authenticated_user'] as const;
 async function createBigQueryAgent(): Promise<LlmAgent> {
   const { email, googleAccessToken } = getVerifiedGoogleUser();
   const mcpBaseUrl = MCP_SERVER_URL.replace(/\/mcp\/?$/, '');
-  const headers = await buildMcpCallerHeaders(mcpBaseUrl, googleAccessToken);
+  const headers = await buildMcpCallerHeadersForAgent(mcpBaseUrl, { email, googleAccessToken });
 
   const mcpToolset = new MCPToolset(
     {
@@ -39,8 +39,10 @@ async function createBigQueryAgent(): Promise<LlmAgent> {
     name: 'bigquery_assistant',
     instruction: `You help users explore BigQuery datasets in project ${projectHint}.
 
-Identity (from the user's OAuth token — not service account impersonation):
+Identity at the A2A boundary (validated Google OAuth token for ${email}):
 - authenticated_user_email: ${email}
+
+MCP hop to bq-mcp (when tools run): remote-agent may exchange a short-lived delegation JWT instead of forwarding the Google access token. get_authenticated_user reports credential_source (delegation_jwt vs user_oauth_access_token).
 
 BigQuery data access (service account impersonation on MCP server only):
 - bigquery_service_account: ${bigqueryCredentialHint}
@@ -52,6 +54,7 @@ When reporting list_datasets results:
 - If status is ok: list the dataset names.
 - Always mention both the signed-in user (authenticated_user_email above) and bigquery_service_account from the tool output.
 - For permission_denied, clarify that BigQuery access is via the impersonated SA, not the user's personal BigQuery permissions.
+- When get_authenticated_user returns credential_source delegation_jwt, say MCP identity was proved via hop token exchange (delegation JWT), not a forwarded Google access token.
 
 Use list_datasets when asked about datasets. When asked who they are, which Google account is active, or what credentials access BigQuery, call get_authenticated_user or answer from the identity and BigQuery fields above.`,
     tools: [mcpToolset],

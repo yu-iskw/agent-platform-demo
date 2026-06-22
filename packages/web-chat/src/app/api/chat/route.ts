@@ -15,7 +15,8 @@ import {
 } from '@/lib/auth-probe';
 import type { AuthProbePreset } from '@/lib/auth-trace';
 import { parseChatMode, useRemoteAgentFromMode, CHAT_MODE_COOKIE } from '@/lib/chat-mode';
-import { parseDemoMode, DEMO_MODE_COOKIE, resolveRemoteDemoRequest } from '@/lib/demo-mode';
+import { isDelegationExchangeAvailable } from '@/lib/delegation-exchange';
+import { resolveRemoteDemoRequest } from '@/lib/demo-mode';
 import { runLocalChatAgent } from '@/lib/local-chat-agent';
 import { getSession, SESSION_COOKIE } from '@/lib/session-store';
 
@@ -43,7 +44,6 @@ export async function POST(request: Request): Promise<NextResponse> {
   const body = (await request.json()) as ChatRequestBody;
   const chatMode = parseChatMode(cookieStore.get(CHAT_MODE_COOKIE)?.value);
   const useRemoteAgent = useRemoteAgentFromMode(chatMode);
-  const demoMode = parseDemoMode(cookieStore.get(DEMO_MODE_COOKIE)?.value);
   const authPreset = parseAuthProbePreset(body.authPreset) ?? 'full';
   const message = body.message?.trim();
   const selectedAgentId = body.agentId?.trim() || 'bigquery';
@@ -80,7 +80,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
 
     const resolvedDemo = resolveRemoteDemoRequest({
-      cookieMode: demoMode,
+      cookieMode: 'agent',
       useRemoteAgent: true,
       routedAgentId: agentId,
       demoAction: undefined,
@@ -108,6 +108,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         agentId,
         routed,
         selectedAgentId,
+        delegationExchangeAvailable: isDelegationExchangeAvailable(),
       },
       authPreset,
     );

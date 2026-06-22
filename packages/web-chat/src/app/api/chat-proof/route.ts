@@ -5,7 +5,8 @@ import { NextResponse } from 'next/server';
 import { sendProofWithAuthProfile } from '@/lib/a2a-client';
 import { AuthProfileError, parseAuthProbePreset } from '@/lib/auth-probe';
 import type { AuthProbePreset } from '@/lib/auth-trace';
-import { parseDemoMode, DEMO_MODE_COOKIE, resolveRemoteDemoRequest } from '@/lib/demo-mode';
+import { isDelegationExchangeAvailable } from '@/lib/delegation-exchange';
+import { resolveRemoteDemoRequest } from '@/lib/demo-mode';
 import { getSession, SESSION_COOKIE } from '@/lib/session-store';
 
 type ChatProofRequestBody = {
@@ -31,7 +32,6 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const body = (await request.json()) as ChatProofRequestBody;
-  const demoMode = parseDemoMode(cookieStore.get(DEMO_MODE_COOKIE)?.value);
   const authPreset = parseAuthProbePreset(body.authPreset) ?? 'full';
   const message = body.message?.trim();
   const selectedAgentId = body.agentId?.trim() || 'bigquery';
@@ -49,7 +49,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const resolvedDemo = resolveRemoteDemoRequest({
-    cookieMode: demoMode,
+    cookieMode: 'direct',
     useRemoteAgent: true,
     routedAgentId: selectedAgentId,
     demoAction,
@@ -58,13 +58,6 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   if (resolvedDemo.error) {
     return NextResponse.json({ error: resolvedDemo.error, authPreset }, { status: 400 });
-  }
-
-  if (resolvedDemo.mode !== 'direct' || !resolvedDemo.demoAction) {
-    return NextResponse.json(
-      { error: 'Proof requests require direct demo mode with the BigQuery agent' },
-      { status: 400 },
-    );
   }
 
   try {
@@ -86,6 +79,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         agentId: selectedAgentId,
         routed: false,
         selectedAgentId,
+        delegationExchangeAvailable: isDelegationExchangeAvailable(),
       },
       authPreset,
     );

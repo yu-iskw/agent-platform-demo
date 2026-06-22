@@ -11,9 +11,6 @@ import type { DemoAction, DemoMode } from '@agent-platform/agent-client';
 import type { FormEvent } from 'react';
 
 const chatModeApiLabel = 'Chat mode API';
-const demoModeApiLabel = 'Demo mode API';
-const demoModeApiPath = '/api/demo-mode';
-const demoModeUpdateError = 'Failed to update demo mode';
 
 function isRemoteSendBlocked(
   useRemoteAgent: boolean,
@@ -44,7 +41,6 @@ function resetReplyState(setters: {
 
 export function useChatClient(): {
   useRemoteAgent: boolean;
-  demoMode: DemoMode;
   remote: ReturnType<typeof useRemoteAgentData>;
   message: string;
   reply: string | null;
@@ -59,7 +55,7 @@ export function useChatClient(): {
   authPreset: AuthProbePreset;
   probing: boolean;
   selectedAgentName: string;
-  showDirectProofControls: boolean;
+  showAuthProofControls: boolean;
   policyUnavailable: boolean;
   authProfileBlocksSend: boolean;
   sendDisabled: boolean;
@@ -67,13 +63,11 @@ export function useChatClient(): {
   setAuthPreset: (preset: AuthProbePreset) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   handleChatModeChange: (remoteEnabled: boolean) => void;
-  handleDemoModeChange: (mode: DemoMode) => void;
   handleAgentSelect: (agentId: string) => void;
   onProofAction: (action: DemoAction, proofMessage: string) => void;
   onRunAuthProbe: () => void;
 } {
   const [useRemoteAgent, setUseRemoteAgent] = useState(false);
-  const [demoMode, setDemoMode] = useState<DemoMode>('agent');
   const remote = useRemoteAgentData(useRemoteAgent);
   const [message, setMessage] = useState('');
   const [reply, setReply] = useState<string | null>(null);
@@ -91,17 +85,10 @@ export function useChatClient(): {
   useEffect(() => {
     void (async () => {
       try {
-        const [chatResponse, demoResponse] = await Promise.all([
-          fetch('/api/chat-mode'),
-          fetch(demoModeApiPath),
-        ]);
+        const chatResponse = await fetch('/api/chat-mode');
         if (chatResponse.ok) {
           const chatData = (await chatResponse.json()) as { mode?: 'local' | 'remote' };
           setUseRemoteAgent(chatData.mode === 'remote');
-        }
-        if (demoResponse.ok) {
-          const demoData = (await demoResponse.json()) as { mode?: DemoMode };
-          setDemoMode(demoData.mode === 'direct' ? 'direct' : 'agent');
         }
       } catch {
         // Keep defaults when session cookie is unavailable.
@@ -113,7 +100,7 @@ export function useChatClient(): {
     remote.agents.find((agent) => agent.id === remote.selectedAgentId) ??
     remote.policyAgents.find((agent) => agent.id === remote.selectedAgentId);
 
-  const showDirectProofControls = useRemoteAgent && !remote.policyLoading;
+  const showAuthProofControls = useRemoteAgent && !remote.policyLoading;
   const policyUnavailable =
     useRemoteAgent &&
     !remote.policyLoading &&
@@ -183,52 +170,18 @@ export function useChatClient(): {
   function handleChatModeChange(remoteEnabled: boolean): void {
     setModeError(null);
     setUseRemoteAgent(remoteEnabled);
-    const tasks = [
-      persistMode('/api/chat-mode', remoteEnabled ? 'remote' : 'local', {
-        apiLabel: chatModeApiLabel,
-        defaultError: 'Failed to update chat mode',
-      }),
-    ];
-    if (!remoteEnabled) {
-      setDemoMode('agent');
-      tasks.push(
-        persistMode(demoModeApiPath, 'agent', {
-          apiLabel: demoModeApiLabel,
-          defaultError: demoModeUpdateError,
-        }),
-      );
-    }
-    void Promise.all(tasks).catch((modeUpdateError) => {
+    void persistMode('/api/chat-mode', remoteEnabled ? 'remote' : 'local', {
+      apiLabel: chatModeApiLabel,
+      defaultError: 'Failed to update chat mode',
+    }).catch((modeUpdateError) => {
       setModeError(
         modeUpdateError instanceof Error ? modeUpdateError.message : 'Failed to update mode',
       );
     });
   }
 
-  function handleDemoModeChange(mode: DemoMode): void {
-    setModeError(null);
-    setDemoMode(mode);
-    void persistMode(demoModeApiPath, mode, {
-      apiLabel: demoModeApiLabel,
-      defaultError: demoModeUpdateError,
-    }).catch((modeUpdateError) => {
-      setModeError(
-        modeUpdateError instanceof Error ? modeUpdateError.message : demoModeUpdateError,
-      );
-    });
-  }
-
   function handleAgentSelect(agentId: string): void {
     remote.setSelectedAgentId(agentId);
-    if (agentId !== 'bigquery' && demoMode === 'direct') {
-      setDemoMode('agent');
-      void persistMode(demoModeApiPath, 'agent', {
-        apiLabel: demoModeApiLabel,
-        defaultError: demoModeUpdateError,
-      }).catch(() => {
-        // Non-fatal; server downgrades direct mode on routing anyway.
-      });
-    }
   }
 
   const authProfileBlocksSend = useRemoteAgent && authPreset !== 'full';
@@ -239,7 +192,6 @@ export function useChatClient(): {
 
   return {
     useRemoteAgent,
-    demoMode,
     remote,
     message,
     reply,
@@ -254,7 +206,7 @@ export function useChatClient(): {
     authPreset,
     probing,
     selectedAgentName: selectedAgent?.name ?? remote.selectedAgentId,
-    showDirectProofControls,
+    showAuthProofControls,
     policyUnavailable,
     authProfileBlocksSend,
     sendDisabled,
@@ -262,7 +214,6 @@ export function useChatClient(): {
     setAuthPreset,
     onSubmit,
     handleChatModeChange,
-    handleDemoModeChange,
     handleAgentSelect,
     onProofAction: (action, proofMessage) => {
       sendChatRequest({ message: proofMessage, demoAction: action });
