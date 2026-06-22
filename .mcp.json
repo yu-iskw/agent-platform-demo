@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "bq-mcp": {
+      "type": "http",
+      "url": "http://127.0.0.1:8080/mcp",
+      "oauth": {
+        "clientId": "${env:MCP_GOOGLE_OAUTH_CLIENT_ID}",
+        "callbackPort": 54321
+      }
+    },
+    "remote-agent": {
+      "type": "http",
+      "url": "http://127.0.0.1:8081/mcp",
+      "oauth": {
+        "clientId": "${env:MCP_GOOGLE_OAUTH_CLIENT_ID}",
+        "callbackPort": 54321
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "@agent-platform/agent-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared A2A client for calling the remote agent",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./pick-enabled-agent-id": {
+      "types": "./dist/pick-enabled-agent-id.d.ts",
+      "import": "./dist/pick-enabled-agent-id.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@a2a-js/sdk": "^0.3.13",
+    "@agent-platform/mcp-auth": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3"
+  }
+}

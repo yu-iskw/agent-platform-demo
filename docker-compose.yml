@@ -1,0 +1,36 @@
+services:
+  bq-mcp:
+    build:
+      context: .
+      dockerfile: packages/bq-mcp-server/Dockerfile
+    ports:
+      - 8080:8080
+    environment:
+      AUTH_MODE: google
+      PORT: '8080'
+      HOST: 0.0.0.0
+      MCP_RESOURCE_URL: http://localhost:8080/mcp
+      BQ_METADATA_READER_SA_EMAIL: ${BQ_METADATA_READER_SA_EMAIL:?set BQ_METADATA_READER_SA_EMAIL from terraform output}
+
+  remote-agent:
+    build:
+      context: .
+      dockerfile: packages/remote-agent/Dockerfile
+    ports:
+      - 8081:8081
+    depends_on:
+      - bq-mcp
+    environment:
+      PORT: '8081'
+      HOST: 0.0.0.0
+      MCP_AUTH_MODE: google
+      MCP_SERVER_URL: http://bq-mcp:8080/mcp
+      MCP_RESOURCE_URL: http://localhost:8081/mcp
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:?set GOOGLE_CLOUD_PROJECT}
+      GOOGLE_GENAI_USE_VERTEXAI: ${GOOGLE_GENAI_USE_VERTEXAI:-true}
+      GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-us-central1}
+      AGENT_MODEL: ${AGENT_MODEL:-gemini-2.5-flash}
+      PUBLIC_AGENT_URL: http://localhost:8081
+      BQ_METADATA_READER_SA_EMAIL: ${BQ_METADATA_READER_SA_EMAIL:?set BQ_METADATA_READER_SA_EMAIL from terraform output}
+    volumes:
+      - ${HOME}/.config/gcloud:/root/.config/gcloud:ro

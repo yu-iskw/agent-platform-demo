@@ -44,6 +44,14 @@ const importXRules = {
     'error',
     {
       groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index', 'type'],
+      pathGroups: [
+        {
+          pattern: '@/**',
+          group: 'internal',
+          position: 'after',
+        },
+      ],
+      pathGroupsExcludedImportTypes: ['builtin'],
       'newlines-between': 'always',
       alphabetize: { order: 'asc', caseInsensitive: true },
     },
@@ -111,6 +119,7 @@ export default [
       '.serena/**',
       '.trunk/**',
       '**/*.generated.ts',
+      'packages/web-chat/next-env.d.ts',
     ],
   },
   {

@@ -1,0 +1,40 @@
+project_id = "your-project-id"
+region     = "us-central1"
+
+allowed_emails = [
+  "you@example.com",
+]
+
+# Used by deploy scripts to grant roles/run.invoker on Cloud Run (not app runtime config).
+
+# Principals who may impersonate bq-metadata-reader (bq-mcp-sa is added automatically).
+bq_impersonation_principals = [
+  "user:you@example.com",
+]
+
+# Required to create OAuth client via Terraform (needs IAP Admin / org permissions).
+iap_support_email     = "you@example.com"
+iap_application_title = "Demo: Chain of Remote A2A Agent and MCP Servers"
+
+# Web OAuth client: web-chat + hosted IDE callbacks (Claude Desktop, Cursor Cloud Agents).
+# Add production web-chat URIs when hosting, e.g.:
+# "https://chat.example.com/api/auth/callback"
+web_oauth_redirect_uris = [
+  "http://localhost:3000/api/auth/callback",
+  "http://127.0.0.1:3000/api/auth/callback",
+  "https://claude.ai/api/mcp/auth_callback",
+  "https://claude.com/api/mcp/auth_callback",
+  "https://www.cursor.com/agents/mcp/oauth/callback",
+]
+
+# Web-chat OAuth (single source of truth — see scripts/setup-web-oauth.sh)
+web_oauth_client_id     = "YOUR_CLIENT_ID.apps.googleusercontent.com"
+web_oauth_client_type   = "web" # web = server-side secret (recommended); desktop = PKCE-only (often fails at Google token endpoint)
+web_oauth_client_secret = "GOCSPX-..."
+
+# Desktop OAuth client for IDE MCP (create manually in GCP Console → Desktop app).
+# Leave null to use defaults derived from claude_code_oauth_callback_port.
+# claude_code_oauth_callback_port = 54321
+# mcp_oauth_redirect_uris = null
+# mcp_oauth_client_id     = ""
+# mcp_oauth_client_secret = ""
