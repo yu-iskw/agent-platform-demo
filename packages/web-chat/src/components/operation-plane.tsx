@@ -11,7 +11,6 @@ import type { FormEvent } from 'react';
 type OperationPlaneProps = {
   useRemoteAgent: boolean;
   selectedAgentId: string;
-  demoMode: DemoMode;
   message: string;
   reply: string | null;
   replyAgentName: string | null;
@@ -31,7 +30,6 @@ type OperationPlaneProps = {
 export function OperationPlane({
   useRemoteAgent,
   selectedAgentId,
-  demoMode,
   message,
   reply,
   replyAgentName,
@@ -52,11 +50,6 @@ export function OperationPlane({
     replyDemoMode,
     replyAgentName,
   });
-
-  const directModeBlocksSend =
-    useRemoteAgent &&
-    (selectedAgentId === 'bigquery' || policyUnavailable) &&
-    demoMode === 'direct';
 
   const textareaPlaceholder = policyUnavailable
     ? 'Policy unavailable — use proof actions in the control plane'
@@ -94,20 +87,14 @@ export function OperationPlane({
           }}
           placeholder={textareaPlaceholder}
           rows={5}
-          disabled={directModeBlocksSend}
           style={{ width: '100%', padding: '0.5rem' }}
         />
-        {directModeBlocksSend ? (
-          <p style={{ color: '#555', fontSize: '0.85rem', margin: 0 }}>
-            Direct tool mode: use Prove identity or List datasets in the control plane.
-          </p>
-        ) : null}
         {authProfileBlocksSend ? (
           <p style={{ color: '#555', fontSize: '0.85rem', margin: 0 }}>
             Switch auth profile to Full to use Send. Proof buttons still use the selected profile.
           </p>
         ) : null}
-        <button type="submit" disabled={sendDisabled || directModeBlocksSend}>
+        <button type="submit" disabled={sendDisabled}>
           {loading ? 'Sending…' : 'Send'}
         </button>
       </form>

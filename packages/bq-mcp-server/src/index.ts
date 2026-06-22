@@ -2,6 +2,7 @@ import {
   assertServiceAuthModeAllowed,
   authRouteRateLimit,
   createMcpSessionRegistry,
+  DELEGATION_TOKEN_HEADER,
   getHttpHeader,
   INVALID_SESSION_RESPONSE,
   mountMcpOAuthRoutes,
@@ -49,18 +50,29 @@ function createMcpServer(): McpServer {
       inputSchema: z.object({}),
     },
     () => {
-      const { email } = getVerifiedGoogleUser();
+      const user = getVerifiedGoogleUser();
+      const payload: Record<string, string> = {
+        email: user.email,
+        credential_source: user.credentialSource,
+        bigquery_credential_source: 'impersonated_service_account',
+        bigquery_service_account: BQ_METADATA_READER_SA_EMAIL!,
+        auth_mode: AUTH_MODE,
+      };
+
+      if (user.credentialSource === 'delegation_jwt') {
+        if (user.credentialIssuer) {
+          payload.credential_issuer = user.credentialIssuer;
+        }
+        if (user.credentialAudience) {
+          payload.credential_audience = user.credentialAudience;
+        }
+      }
+
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              email,
-              credential_source: 'user_oauth_access_token',
-              bigquery_credential_source: 'impersonated_service_account',
-              bigquery_service_account: BQ_METADATA_READER_SA_EMAIL,
-              auth_mode: AUTH_MODE,
-            }),
+            text: JSON.stringify(payload),
           },
         ],
       };
@@ -110,16 +122,16 @@ async function ensureServiceAuth(req: Request) {
   });
 }
 
+const MISSING_USER_CREDENTIAL_MESSAGE = `Missing ${DELEGATION_TOKEN_HEADER}, ${USER_ACCESS_TOKEN_HEADER}, or Google access token on Authorization`;
+
 async function handleSessionTransportRequest(req: Request, res: Response): Promise<void> {
   await runAuthorizedMcpRequest(req, res, {
     sessionRegistry,
     allowInitialize: false,
+    expectedAudience: serverUrl.origin,
     verifyServiceCaller: ensureServiceAuth,
     onUnauthorized: () => res.status(401).end('Unauthorized'),
-    onMissingUserToken: () =>
-      res
-        .status(400)
-        .end(`Missing ${USER_ACCESS_TOKEN_HEADER} header or Google access token on Authorization`),
+    onMissingUserToken: () => res.status(400).end(MISSING_USER_CREDENTIAL_MESSAGE),
     onInvalidUserToken: () => res.status(403).end('Invalid or forbidden user access token'),
     onInvalidSession: () => res.status(400).end(INVALID_SESSION_RESPONSE),
     handle: async (transport, user) => {
@@ -134,11 +146,12 @@ app.post('/mcp', authRouteRateLimit, async (req, res) => {
   await runAuthorizedMcpRequest(req, res, {
     sessionRegistry,
     allowInitialize: true,
+    expectedAudience: serverUrl.origin,
     verifyServiceCaller: ensureServiceAuth,
     onUnauthorized: () => res.status(401).json({ error: 'Unauthorized service caller' }),
     onMissingUserToken: () =>
       res.status(400).json({
-        error: `Missing ${USER_ACCESS_TOKEN_HEADER} header or Google access token on Authorization`,
+        error: MISSING_USER_CREDENTIAL_MESSAGE,
       }),
     onInvalidUserToken: () =>
       res.status(403).json({ error: 'Invalid or forbidden user access token' }),

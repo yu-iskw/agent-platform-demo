@@ -3,9 +3,14 @@ import { getEmailFromGoogleAccessToken } from './google-access-token.js';
 
 import type { AsyncLocalStorage } from 'node:async_hooks';
 
+export type CredentialSource = 'user_oauth_access_token' | 'delegation_jwt';
+
 export type GoogleUserContext = {
   email: string;
-  googleAccessToken: string;
+  googleAccessToken?: string;
+  credentialSource: CredentialSource;
+  credentialIssuer?: string;
+  credentialAudience?: string;
 };
 
 export type GoogleUserAuthMiddlewareOptions = {
@@ -40,7 +45,11 @@ export function createGoogleUserAuthMiddleware(
 
     try {
       const email = await getEmailFromGoogleAccessToken(token);
-      const context: GoogleUserContext = { email, googleAccessToken: token };
+      const context: GoogleUserContext = {
+        email,
+        googleAccessToken: token,
+        credentialSource: 'user_oauth_access_token',
+      };
 
       if (options.userContext) {
         options.userContext.run(context, next);

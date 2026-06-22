@@ -150,11 +150,40 @@ describe('buildAuthTrace', () => {
       demoMode: 'direct',
       httpOk: true,
       error: null,
-      reply: '{"credential_source":"user_oauth_access_token"}',
+      reply: '{"credential_source":"delegation_jwt"}',
       probePreset: 'full',
     });
 
     expect(layers.find((layer) => layer.id === 'mcp')?.status).toBe('ok');
+    expect(layers.find((layer) => layer.id === 'mcp')?.detail).toContain('Hop token exchange');
+  });
+
+  it('skips MCP for agent chat without proof JSON in reply', () => {
+    const layers = buildAuthTrace({
+      useRemoteAgent: true,
+      demoMode: 'agent',
+      agentId: 'bigquery',
+      delegationExchangeAvailable: true,
+      httpOk: true,
+      error: null,
+      reply: 'You are signed in as user@example.com',
+    });
+
+    expect(layers.find((layer) => layer.id === 'mcp')?.status).toBe('skipped');
+  });
+
+  it('skips MCP for agent chat when delegation exchange is unavailable', () => {
+    const layers = buildAuthTrace({
+      useRemoteAgent: true,
+      demoMode: 'agent',
+      agentId: 'bigquery',
+      delegationExchangeAvailable: false,
+      httpOk: true,
+      error: null,
+      reply: 'You are signed in as user@example.com',
+    });
+
+    expect(layers.find((layer) => layer.id === 'mcp')?.status).toBe('skipped');
   });
 
   it('marks IAM fail and A2A skipped for full probe with 403', () => {

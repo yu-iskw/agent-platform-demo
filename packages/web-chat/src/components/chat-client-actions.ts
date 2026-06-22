@@ -13,6 +13,7 @@ type ChatResponse = {
   routed?: boolean;
   selectedAgentId?: string;
   authPreset?: AuthProbePreset;
+  delegationExchangeAvailable?: boolean;
   error?: string;
 };
 
@@ -71,6 +72,8 @@ export async function postChatRequest(
   let responseReply: string | null = null;
   let responseUseRemote = context.useRemoteAgent;
   let responseDemoMode: DemoMode | null = null;
+  let responseAgentId: string | null = null;
+  let responseDelegationExchange = false;
   let responseAuthPreset: AuthProbePreset | null = context.useRemoteAgent
     ? context.authPreset
     : null;
@@ -103,6 +106,8 @@ export async function postChatRequest(
     responseReply = data.reply ?? '';
     responseUseRemote = data.useRemoteAgent ?? context.useRemoteAgent;
     responseDemoMode = data.demoMode ?? null;
+    responseAgentId = data.agentId ?? proofAgentId;
+    responseDelegationExchange = data.delegationExchangeAvailable ?? false;
 
     callbacks.onSuccess({
       reply: responseReply,
@@ -126,6 +131,8 @@ export async function postChatRequest(
       error: responseError,
       reply: responseReply,
       probePreset: responseAuthPreset,
+      agentId: responseAgentId,
+      delegationExchangeAvailable: responseDelegationExchange,
     });
     callbacks.onFinish();
   }

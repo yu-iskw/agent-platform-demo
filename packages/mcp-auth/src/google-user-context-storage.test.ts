@@ -11,7 +11,11 @@ describe('createGoogleUserContextStorage', () => {
 
   it('returns the active context inside storage.run', async () => {
     const { storage, getVerifiedGoogleUser } = createGoogleUserContextStorage();
-    const user = { email: 'user@example.com', googleAccessToken: 'token' };
+    const user = {
+      email: 'user@example.com',
+      googleAccessToken: 'token',
+      credentialSource: 'user_oauth_access_token' as const,
+    };
 
     await storage.run(user, () => {
       expect(getVerifiedGoogleUser()).toEqual(user);

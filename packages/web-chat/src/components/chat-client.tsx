@@ -13,14 +13,12 @@ export default function ChatClient(): React.JSX.Element {
       control={
         <ControlPlane
           useRemoteAgent={chat.useRemoteAgent}
-          demoMode={chat.demoMode}
           modeError={chat.modeError}
           loading={chat.loading}
           remote={chat.remote}
           selectedAgentName={chat.selectedAgentName}
-          showDirectProofControls={chat.showDirectProofControls}
+          showAuthProofControls={chat.showAuthProofControls}
           onChatModeChange={chat.handleChatModeChange}
-          onDemoModeChange={chat.handleDemoModeChange}
           onProofAction={chat.onProofAction}
           onAgentSelect={chat.handleAgentSelect}
           authPreset={chat.authPreset}
@@ -33,7 +31,6 @@ export default function ChatClient(): React.JSX.Element {
         <OperationPlane
           useRemoteAgent={chat.useRemoteAgent}
           selectedAgentId={chat.remote.selectedAgentId}
-          demoMode={chat.demoMode}
           message={chat.message}
           reply={chat.reply}
           replyAgentName={chat.replyAgentName}

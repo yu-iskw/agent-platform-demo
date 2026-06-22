@@ -21,6 +21,7 @@ export function mountAgentMcpRoutes(
   options: { mcpResourceUrl: string; policy: AgentPolicyStore },
 ): void {
   const { policy } = options;
+  const expectedAudience = new URL(options.mcpResourceUrl).origin;
   const sessionRegistry = createMcpSessionRegistry({
     createMcpServer: () => createBigQueryMcpServer(),
   });
@@ -42,7 +43,9 @@ export function mountAgentMcpRoutes(
     await runAuthorizedMcpRequest(req, res, {
       sessionRegistry,
       allowInitialize: false,
-      onMissingUserToken: () => res.status(401).end('Missing Google access token'),
+      expectedAudience,
+      onMissingUserToken: () =>
+        res.status(401).end('Missing user credential (OAuth or delegation JWT)'),
       onInvalidUserToken: () => res.status(403).end('Invalid or forbidden user access token'),
       onInvalidSession: () => res.status(400).end(INVALID_SESSION_RESPONSE),
       handle: async (transport, user) => {
@@ -66,7 +69,9 @@ export function mountAgentMcpRoutes(
     await runAuthorizedMcpRequest(req, res, {
       sessionRegistry,
       allowInitialize: true,
-      onMissingUserToken: () => res.status(401).json({ error: 'Missing Google access token' }),
+      expectedAudience,
+      onMissingUserToken: () =>
+        res.status(401).json({ error: 'Missing user credential (OAuth or delegation JWT)' }),
       onInvalidUserToken: () =>
         res.status(403).json({ error: 'Invalid or forbidden user access token' }),
       handle: async (transport, user) => {

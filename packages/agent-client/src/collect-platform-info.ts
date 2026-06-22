@@ -1,4 +1,4 @@
-import { buildMcpCallerHeaders } from '@agent-platform/mcp-auth';
+import { buildMcpCallerHeadersForDirect } from '@agent-platform/mcp-auth';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
@@ -113,7 +113,7 @@ async function collectMcpServerMetadata(
 ): Promise<McpServerMetadata> {
   try {
     const origin = mcpOrigin(mcpUrl);
-    const headers = await buildMcpCallerHeaders(origin, googleAccessToken);
+    const headers = await buildMcpCallerHeadersForDirect(origin, googleAccessToken);
     const [prm, tools] = await Promise.all([
       fetchPrmMetadata(origin, headers),
       listMcpTools(mcpUrl, headers),

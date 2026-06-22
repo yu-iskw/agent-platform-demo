@@ -109,6 +109,11 @@ fi
 GOOGLE_CLOUD_PROJECT="${GOOGLE_CLOUD_PROJECT:-${PROJECT_ID}}"
 GOOGLE_CLOUD_LOCATION="${GOOGLE_CLOUD_LOCATION:-${REGION}}"
 
+DELEGATION_JWT_EXCHANGE=false
+if [[ -f "${ROOT_DIR}/.delegation-jwt-secret" ]]; then
+	DELEGATION_JWT_EXCHANGE=true
+fi
+
 mkdir -p "$(dirname "${WEB_CHAT_ENV}")"
 tmp_env="$(mktemp "${WEB_CHAT_ENV}.XXXXXX")"
 trap 'rm -f "${tmp_env}"' EXIT
@@ -120,6 +125,7 @@ AGENT_URL=${AGENT_URL}
 SESSION_SECRET=${SESSION_SECRET}
 GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
 GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION}
+DELEGATION_JWT_EXCHANGE=${DELEGATION_JWT_EXCHANGE}
 EOF
 
 mv "${tmp_env}" "${WEB_CHAT_ENV}"
@@ -130,7 +136,7 @@ WEB_CHAT_PORT="${WEB_CHAT_PORT:-3000}"
 client_id_prefix="${GOOGLE_OAUTH_CLIENT_ID%%.*}"
 log "OAuth from terraform (web_oauth_client_type=${WEB_OAUTH_CLIENT_TYPE})"
 log "  client: ${client_id_prefix}…"
-log "Wrote ${WEB_CHAT_ENV} (AGENT_URL, OAUTH_REDIRECT_URI, SESSION_SECRET, GCP project/location)"
+log "Wrote ${WEB_CHAT_ENV} (AGENT_URL, OAUTH_REDIRECT_URI, SESSION_SECRET, GCP project/location, DELEGATION_JWT_EXCHANGE)"
 log "  AGENT_URL=${AGENT_URL}"
 log "  Open http://localhost:${WEB_CHAT_PORT} after the dev server starts"
 log "  If chat returns 403, ensure your email is in terraform allowed_emails (run.invoker)"
@@ -148,5 +154,5 @@ cd "${ROOT_DIR}"
 log "Building @agent-platform/agent-client (web-chat imports dist/)"
 pnpm --filter @agent-platform/agent-client build
 
-export OAUTH_REDIRECT_URI AGENT_URL SESSION_SECRET GOOGLE_CLOUD_PROJECT GOOGLE_CLOUD_LOCATION
+export OAUTH_REDIRECT_URI AGENT_URL SESSION_SECRET GOOGLE_CLOUD_PROJECT GOOGLE_CLOUD_LOCATION DELEGATION_JWT_EXCHANGE
 exec pnpm --filter @agent-platform/web-chat exec next dev --port "${WEB_CHAT_PORT}"

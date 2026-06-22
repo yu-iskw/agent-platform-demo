@@ -10,6 +10,7 @@ source "${SCRIPT_DIR}/lib/common.sh"
 : "${BQ_METADATA_READER_SA_EMAIL:?BQ_METADATA_READER_SA_EMAIL is required (terraform output bq_metadata_reader_sa_email)}"
 
 resolve_allowed_emails >/dev/null
+resolve_delegation_jwt_secret
 
 IMAGE="${ARTIFACT_REGISTRY_URL}/bq-mcp:${IMAGE_TAG}"
 
@@ -29,7 +30,7 @@ gcloud run deploy bq-mcp \
 	--min-instances=1 \
 	--max-instances=1 \
 	--port=8080 \
-	--set-env-vars="AUTH_MODE=cloud,EXPECTED_CALLER_SA_EMAIL=${REMOTE_AGENT_SA_EMAIL},BQ_METADATA_READER_SA_EMAIL=${BQ_METADATA_READER_SA_EMAIL}"
+	--set-env-vars="AUTH_MODE=cloud,EXPECTED_CALLER_SA_EMAIL=${REMOTE_AGENT_SA_EMAIL},BQ_METADATA_READER_SA_EMAIL=${BQ_METADATA_READER_SA_EMAIL},DELEGATION_JWT_SECRET=${DELEGATION_JWT_SECRET}"
 
 log "Granting remote-agent-sa run.invoker on bq-mcp"
 gcloud run services add-iam-policy-binding bq-mcp \

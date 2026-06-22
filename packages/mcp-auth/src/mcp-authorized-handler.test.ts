@@ -1,8 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMcpSessionRegistry, runAuthorizedMcpRequest } from './mcp-authorized-handler.js';
 
 import type { Request, Response } from 'express';
+
+const TEST_SECRET = 'test-delegation-secret-at-least-32-chars';
+const EXPECTED_AUDIENCE = 'https://bq-mcp.example.com';
 
 vi.mock('./google-access-token.js', () => ({
   getEmailFromGoogleAccessToken: vi.fn((token: string) => {
@@ -25,7 +28,12 @@ function createMockRequest(input: Pick<Request, 'headers' | 'body'>): Request {
 }
 
 describe('runAuthorizedMcpRequest', () => {
+  beforeEach(() => {
+    process.env.DELEGATION_JWT_SECRET = TEST_SECRET;
+  });
+
   afterEach(() => {
+    delete process.env.DELEGATION_JWT_SECRET;
     vi.clearAllMocks();
   });
 
@@ -56,6 +64,7 @@ describe('runAuthorizedMcpRequest', () => {
       {
         sessionRegistry,
         allowInitialize: true,
+        expectedAudience: EXPECTED_AUDIENCE,
         onMissingUserToken,
         onInvalidUserToken: vi.fn(),
         handle,
@@ -85,6 +94,7 @@ describe('runAuthorizedMcpRequest', () => {
       {
         sessionRegistry,
         allowInitialize: false,
+        expectedAudience: EXPECTED_AUDIENCE,
         onMissingUserToken,
         onInvalidUserToken: vi.fn(),
         onInvalidSession,
@@ -127,6 +137,7 @@ describe('runAuthorizedMcpRequest', () => {
       {
         sessionRegistry,
         allowInitialize: true,
+        expectedAudience: EXPECTED_AUDIENCE,
         verifyServiceCaller: () =>
           Promise.resolve({
             email: 'other@example.com',
