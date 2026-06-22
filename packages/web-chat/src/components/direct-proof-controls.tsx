@@ -5,7 +5,7 @@ import { panelStyle } from '@/lib/ui-tokens';
 
 import type { DemoAction, DemoMode } from '@agent-platform/agent-client';
 
-export const proofActions: { action: DemoAction; label: string; message: string }[] = [
+const proofActions: { action: DemoAction; label: string; message: string }[] = [
   {
     action: 'get_authenticated_user',
     label: 'Prove identity',

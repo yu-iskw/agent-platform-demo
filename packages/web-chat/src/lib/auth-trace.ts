@@ -12,7 +12,7 @@ const DETAIL_MCP_SKIP = 'Use direct proof for bq-mcp trace';
 const DETAIL_A2A_TOKEN = 'Delegated user access token';
 const DETAIL_IAM = 'run.invoker + identity token';
 
-export type AuthLayerStatus = 'ok' | 'skipped' | 'fail' | 'unknown';
+type AuthLayerStatus = 'ok' | 'skipped' | 'fail' | 'unknown';
 
 export type AuthLayer = {
   id: string;

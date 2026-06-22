@@ -1,6 +1,6 @@
-export const borderLight = '1px solid #ccc';
-export const borderRadius = 4;
-export const panelPadding = '0.75rem';
+const borderLight = '1px solid #ccc';
+const borderRadius = 4;
+const panelPadding = '0.75rem';
 
 export const colors = {
   activeBg: '#e8f0fe',
